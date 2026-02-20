@@ -1,0 +1,32 @@
+.{
+    .name = .zgb,
+    .version = "0.0.0",
+    .fingerprint = 0x2f27c98082d44820, // Do not change.
+    .minimum_zig_version = "0.15.2",
+    .dependencies = .{
+        .sdl2_prebuilt_x86_64_linux_gnu = .{
+            .url = "git+https://github.com/zig-gamedev/sdl2-prebuilt-x86_64-linux-gnu.git?ref=main#ce2b511c052c3fdc35c286ade8235d2830a50992",
+            .hash = "sdl2_prebuilt_x86_64_linux_gnu-0.2.0-dev-NHZ_xrzSHwDJDoAxuVi000OEq428znS1fDRRJE8PlXHu",
+        },
+        .sdl2_prebuilt_x86_64_windows_gnu = .{
+            .url = "git+https://github.com/zig-gamedev/sdl2-prebuilt-x86_64-windows-gnu.git?ref=main#8de1512cedfa1fb3ab17ecf295af8cabd7f231f1",
+            .hash = "sdl2_prebuilt_x86_64_windows_gnu-0.2.0-dev-HPeIhv2VaQBOWF4Fjtr7Vb9bA852pUtwUuQKdvNvkA98",
+        },
+        .sdl2_prebuilt_macos = .{
+            .url = "git+https://github.com/zig-gamedev/sdl2-prebuilt-macos.git?ref=main#7bc0fa9101342c019eed252d43f490660dfa411b",
+            .hash = "sdl2_prebuilt_macos-0.2.0-dev-DaOxP5Eq2QBpNBkpXn2qjyI6_s0gINcbdUMpqI1KshaH",
+        },
+        .zsdl = .{
+            .url = "git+https://github.com/zig-gamedev/zsdl.git?ref=main#537de39b5719f39dcd612df2923607f3aedaf147",
+            .hash = "zsdl-0.4.0-dev-rFpjEzgIXwBdDmlda0YnQPRVApMc1YEgbyzLWuT9GupM",
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+        // For example...
+        //"LICENSE",
+        //"README.md",
+    },
+}
