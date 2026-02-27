@@ -27,8 +27,8 @@ pub const Screen = struct {
             "zgb",
             sdl.Window.pos_undefined,
             sdl.Window.pos_undefined,
-            600,
-            600,
+            256 * 2,
+            256 * 2,
             .{ .opengl = true, .allow_highdpi = false },
         );
         const renderer = try sdl.createRenderer(window, null, .{ .accelerated = true, .present_vsync = true, .software = false, .target_texture = false });
@@ -45,6 +45,7 @@ pub const Screen = struct {
     pub fn lcd_tick(self: *Screen, cycle: u32) void {
         // std.debug.print("lcd: {}, screen: {:0>3}, mode: {s:>11}, ly: {}, lcdc: 0b{b:0>8}", .{ self.is_lcd_enabled(), self.cycle_count, @tagName(self.get_ppu_mode()), self.get_ly(), self.get_lcdc() });
         if (!self.is_lcd_enabled() and self.get_ppu_mode() != .h_blank) {
+            self.reset_ly();
             self.set_ppu_mode(.h_blank);
             return;
         } else if (!self.is_lcd_enabled()) return;
@@ -113,20 +114,27 @@ pub const Screen = struct {
                 }
             }
 
-            for (35..67) |x| {
-                for (0..12) |y| {
-                    const tile_addr = 0x8000 + (@as(u16, @truncate(x - 35)) + @as(u16, @truncate(y)) * 32) * 16;
-                    var tile = Tile.from_mem(mem[tile_addr..(tile_addr + 16)], 0, mem[0xFF47]);
-                    try tile.draw_tile(self.renderer, @truncate(x), @truncate(y));
-                }
-            }
-
+            // for (35..67) |x| {
+            //     for (0..12) |y| {
+            //         const tile_addr = 0x8000 + (@as(u16, @truncate(x - 35)) + @as(u16, @truncate(y)) * 32) * 16;
+            //         var tile = Tile.from_mem(mem[tile_addr..(tile_addr + 16)], 0, mem[0xFF47]);
+            //         try tile.draw_tile(self.renderer, @truncate(x), @truncate(y));
+            //     }
+            // }
+            try self.draw_bg_area();
             sdl.renderPresent(self.renderer);
         } else {
             try self.renderer.setDrawColor(.{ .r = 255, .g = 255, .b = 255, .a = 255 });
             try self.renderer.clear();
             sdl.renderPresent(self.renderer);
         }
+    }
+
+    fn draw_bg_area(self: *Screen) !void {
+        const scy = self.get_cpu().mem.read_at(0xFF42);
+        const scx = self.get_cpu().mem.read_at(0xFF43);
+        try self.renderer.setDrawColorRGB(255, 0, 0);
+        try self.renderer.drawRect(.{ .x = @intCast(scx), .y = @intCast(scy), .w = 160 * 2, .h = 144 * 2 });
     }
 
     pub fn set_ppu_mode(self: *Screen, mode: PPU_MODE) void {
@@ -161,6 +169,10 @@ pub const Screen = struct {
 
     fn get_ly(self: *Screen) u8 {
         return self.get_cpu().mem.data[0xFF44];
+    }
+
+    fn reset_ly(self: *Screen) void {
+        self.get_cpu().mem.data[0xFF44] = 0;
     }
 
     fn inc_ly(self: *Screen) void {
@@ -240,7 +252,8 @@ const Tile = struct {
                     .light_grey => try renderer.setDrawColorRGB(128, 128, 128),
                     .white => try renderer.setDrawColorRGB(255, 255, 255),
                 }
-                try renderer.drawPoint(@intCast(i + x * 8), @intCast(j + y * 8));
+                try renderer.drawRectF(.{ .x = @floatFromInt((i + x * 8) * 2), .y = @floatFromInt((j + y * 8) * 2), .h = 2, .w = 2 });
+                // try renderer.drawPoint(@intCast((i + x * 8) * 4), @intCast((j + y * 8) * 4));
             }
         }
     }
