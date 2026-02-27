@@ -142,7 +142,7 @@ pub const Debugger = struct {
     }
 
     pub fn set_breakpoint(self: *Debugger, addr: u16) !void {
-        if (addr == self.cpu.registers.pc - 1) {
+        if (addr == self.cpu.registers.pc -| 1) {
             self.future_breakpoint = addr;
             return;
         }

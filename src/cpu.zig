@@ -1,5 +1,5 @@
 const std = @import("std");
-const instr_mod = @import("instructions.zig");
+const instr_mod = @import("./cpu/instructions.zig");
 const Instruction = instr_mod.Instruction;
 const R8 = instr_mod.R8;
 const R16 = instr_mod.R16;
@@ -10,7 +10,9 @@ const Memory = @import("mem.zig").Memory;
 const Allocator = std.mem.Allocator;
 const Clock = @import("clock.zig").Clock;
 const Screen = @import("screen.zig").Screen;
+const alu = @import("arithmetics.zig");
 const Joypad = @import("joypad.zig").Joypad;
+const Interrupts = @import("cpu/interrupts.zig").Interrupts;
 
 pub const CPU = struct {
     registers: Registers,
@@ -42,38 +44,38 @@ pub const CPU = struct {
 
     pub fn execute_instruction(self: *CPU, instruction: Instruction) void {
         const reg = &self.*.registers;
-        const mem = &self.mem;
-        self.clock.tick(1);
+        const mem = &self.*.mem;
+        self.clock.tick_emu(1);
         switch (instruction) {
             .nop, .breakpoint => return,
             .ld_r16_imm16 => |arg| {
                 reg.set_r16(.{ .R16 = arg.r16 }, arg.imm16);
-                self.clock.tick(2);
+                self.clock.tick_emu(2);
             },
             .ld_r16mem_a => |arg| {
                 const r16mem = reg.load_r16(.{ .R16Mem = arg.r16mem });
                 mem.write(r16mem, reg.a);
-                self.clock.tick(1);
+                self.clock.tick_emu(1);
             },
             .ld_a_r16mem => |arg| {
                 const r16mem = reg.load_r16(.{ .R16Mem = arg.r16mem });
                 reg.a = mem.read_at(r16mem);
-                self.clock.tick(1);
+                self.clock.tick_emu(1);
             },
             .ld_imm16_sp => |arg| {
                 mem.write(arg.imm16, @truncate(reg.sp & 0xFF));
                 mem.write(arg.imm16 + 1, @truncate(reg.sp >> 8));
-                self.clock.tick(4);
+                self.clock.tick_emu(4);
             },
             .inc_r16 => |arg| {
                 const r16 = reg.load_r16(.{ .R16 = arg.r16 });
                 reg.set_r16(.{ .R16 = arg.r16 }, r16 +% 1);
-                self.clock.tick(1);
+                self.clock.tick_emu(1);
             },
             .dec_r16 => |arg| {
                 const r16 = reg.load_r16(.{ .R16 = arg.r16 });
                 reg.set_r16(.{ .R16 = arg.r16 }, r16 -% 1);
-                self.clock.tick(1);
+                self.clock.tick_emu(1);
             },
             .add_hl_r16 => |arg| {
                 const hl = reg.get_hl();
@@ -82,7 +84,7 @@ pub const CPU = struct {
                 reg.f.h = ((hl & 0x0FFF) + (r16 & 0x0FFF)) > 0x0FFF;
                 reg.f.n = false;
                 reg.set_hl(hl +% r16);
-                self.clock.tick(1);
+                self.clock.tick_emu(1);
             },
             .inc_r8 => |arg| {
                 const r8 = reg.load_r8(arg.r8);
@@ -102,7 +104,7 @@ pub const CPU = struct {
             },
             .ld_r8_imm8 => |arg| {
                 reg.set_r8(arg.r8, arg.imm8);
-                self.clock.tick(1);
+                self.clock.tick_emu(1);
             },
             .rlca => {
                 reg.f.c = reg.a & 0x80 == 0x80;
@@ -173,15 +175,15 @@ pub const CPU = struct {
             },
             .jr_imm8 => |arg| {
                 reg.pc +%= @as(u16, @bitCast(@as(i16, arg.offset)));
-                self.clock.tick(2);
+                self.clock.tick_emu(2);
             },
             .jr_cond_imm8 => |arg| {
                 const cc = reg.f.check_cc(arg.cond);
                 if (cc) {
                     reg.pc +%= @as(u16, @bitCast(@as(i16, arg.offset)));
-                    self.clock.tick(1);
+                    self.clock.tick_emu(1);
                 }
-                self.clock.tick(1);
+                self.clock.tick_emu(1);
             },
             .stop => {
                 //TODO follow chart
@@ -197,10 +199,10 @@ pub const CPU = struct {
             },
             .add_a_r8 => |arg| {
                 const r8 = reg.load_r8(arg.r8);
+                reg.f.h = alu.u8_half_add_carry(reg.a, r8);
+                reg.f.c = alu.u8_add_carry(reg.a, r8);
                 reg.a +%= r8;
                 reg.f.z = reg.a == 0;
-                reg.f.c = is_sum_overflowing(reg.a, r8);
-                reg.f.h = (((reg.a & 0xF) + (r8 & 0xF)) & 0x10) == 0x10;
                 reg.f.n = false;
             },
             .adc_a_r8 => |arg| {
@@ -218,21 +220,21 @@ pub const CPU = struct {
             },
             .sub_a_r8 => |arg| {
                 const r8 = reg.load_r8(arg.r8);
+                reg.f.n = true;
+                reg.f.c = alu.u8_sub_carry(reg.a, r8);
+                reg.f.h = alu.u8_half_sub_carry(reg.a, r8);
                 reg.a -%= r8;
                 reg.f.z = reg.a == 0;
-                reg.f.c = is_sub_underflowing(reg.a, r8);
-                reg.f.h = (((reg.a & 0xF) -% (r8 & 0xF)) & 0x10) == 0x10;
-                reg.f.n = true;
             },
             .sbc_a_r8 => |arg| {
                 const r8 = reg.load_r8(arg.r8);
                 const carry: u8 = if (reg.f.c) 1 else 0;
-
-                reg.a -%= r8 +% carry;
+                const sub = reg.a -% r8;
                 reg.f.z = reg.a == 0;
-                reg.f.c = is_sub_underflowing(reg.a, r8 +% carry);
-                reg.f.h = (((reg.a & 0xF) -% (r8 +% carry & 0xF)) & 0x10) == 0x10;
                 reg.f.n = true;
+                reg.f.c = alu.u8_sub_carry(reg.a, r8) or alu.u8_sub_carry(sub, carry);
+                reg.f.h = alu.u8_half_sub_carry(reg.a, r8) or alu.u8_half_sub_carry(sub, carry);
+                reg.a -%= r8 +% carry;
             },
             .and_a_r8 => |arg| {
                 const r8 = reg.load_r8(arg.r8);
@@ -266,12 +268,12 @@ pub const CPU = struct {
                 reg.f.c = r8 > reg.a;
             },
             .add_a_imm8 => |arg| {
-                reg.a = reg.a +% arg.imm8;
-                reg.f.z = reg.a == 0;
-                reg.f.h = true;
-                reg.f.c = false;
                 reg.f.n = false;
-                self.clock.tick(1);
+                reg.f.h = alu.u8_half_add_carry(reg.a, arg.imm8);
+                reg.f.c = alu.u8_add_carry(reg.a, arg.imm8);
+                reg.f.z = reg.a == 0;
+                reg.a = reg.a +% arg.imm8;
+                self.clock.tick_emu(1);
             },
             .adc_a_imm8 => |arg| {
                 const carry: u8 = if (reg.f.c) 1 else 0;
@@ -284,15 +286,24 @@ pub const CPU = struct {
                 reg.f.n = false;
                 reg.f.h = ((old_a & 0xF) + (arg.imm8 & 0xF) + carry) > 0xF;
                 reg.f.c = full_sum > 0xFF;
-                self.clock.tick(1);
+                self.clock.tick_emu(1);
             },
             .sub_a_imm8 => |arg| {
-                reg.f.c = reg.a < arg.imm8;
-                reg.a = reg.a -% arg.imm8;
-                reg.f.z = reg.a == 0;
-                reg.f.h = (reg.a & 0x0F) < (arg.imm8 & 0x0F);
                 reg.f.n = true;
-                self.clock.tick(1);
+                reg.f.c = alu.u8_sub_carry(reg.a, arg.imm8);
+                reg.f.h = alu.u8_half_sub_carry(reg.a, arg.imm8);
+                reg.a -%= arg.imm8;
+                reg.f.z = reg.a == 0;
+                self.clock.tick_emu(1);
+            },
+            .sbc_a_imm8 => |arg| {
+                const carry: u8 = if (reg.f.c) 1 else 0;
+                const sub = reg.a -% arg.imm8;
+                reg.f.z = reg.a == 0;
+                reg.f.n = true;
+                reg.f.c = alu.u8_sub_carry(reg.a, arg.imm8) or alu.u8_sub_carry(sub, carry);
+                reg.f.h = alu.u8_half_sub_carry(reg.a, arg.imm8) or alu.u8_half_sub_carry(sub, carry);
+                reg.a -%= arg.imm8 +% carry;
             },
             .and_a_imm8 => |arg| {
                 reg.a &= arg.imm8;
@@ -307,7 +318,7 @@ pub const CPU = struct {
                 reg.f.c = false;
                 reg.f.h = false;
                 reg.f.n = false;
-                self.clock.tick(1);
+                self.clock.tick_emu(1);
             },
             .or_a_imm8 => |arg| {
                 reg.a |= arg.imm8;
@@ -315,7 +326,7 @@ pub const CPU = struct {
                 reg.f.c = false;
                 reg.f.h = false;
                 reg.f.n = false;
-                self.clock.tick(1);
+                self.clock.tick_emu(1);
             },
             .cp_a_imm8 => |arg| {
                 const result: struct { u8, u1 } = @subWithOverflow(reg.a, arg.imm8);
@@ -323,7 +334,7 @@ pub const CPU = struct {
                 reg.f.n = true;
                 reg.f.h = (reg.a & 0x0F) < (arg.imm8 & 0x0F);
                 reg.f.c = arg.imm8 > reg.a;
-                self.clock.tick(1);
+                self.clock.tick_emu(1);
             },
             .ret_cond => |arg| {
                 const cc = reg.f.check_cc(arg.cond);
@@ -337,7 +348,7 @@ pub const CPU = struct {
                 reg.pc = pc;
             },
             .reti => {
-                self.int.ime = true;
+                self.int.ime = .ENABLED;
                 const pc = mem.pop();
                 reg.pc = pc;
             },
@@ -345,10 +356,10 @@ pub const CPU = struct {
                 const cc = reg.f.check_cc(arg.cond);
                 if (cc) {
                     reg.pc = arg.imm16;
-                    self.clock.tick(3);
+                    self.clock.tick_emu(3);
                     return;
                 }
-                self.clock.tick(2);
+                self.clock.tick_emu(2);
             },
             .jp_imm16 => |arg| {
                 //std.debug.print("Jumping to 0x{x:0>4}\n", .{arg.imm16});
@@ -361,17 +372,18 @@ pub const CPU = struct {
                 mem.write(0xFF00 | @as(u16, arg.imm8), reg.a);
             },
             .ld_imm16_a => |arg| {
-                reg.a = mem.read_at(arg.imm16);
+                mem.write(arg.imm16, reg.a);
+                self.clock.tick_emu(3);
             },
             .call_cond_imm16 => |arg| {
                 const cc = reg.f.check_cc(arg.cond);
                 if (cc) {
                     mem.push(reg.pc);
                     reg.pc = arg.imm16;
-                    self.clock.tick(5);
+                    self.clock.tick_emu(5);
                     return;
                 }
-                self.clock.tick(2);
+                self.clock.tick_emu(2);
             },
             .call_imm16 => |arg| {
                 mem.push(reg.pc);
@@ -399,42 +411,40 @@ pub const CPU = struct {
                 reg.a = mem.read_at(arg.imm16);
             },
             .add_sp_imm8 => |arg| {
-                const off = @as(u16, @bitCast(@as(i16, arg.offset)));
-                reg.sp +%= off;
-                self.clock.tick(3);
+                reg.sp = alu.offset_by(reg.sp, arg.offset);
                 reg.f.z = false;
                 reg.f.n = false;
-                reg.f.c = is_sum_overflowing(reg.sp, off);
-                reg.f.h = ((reg.sp & 0x0FFF) + (off & 0x0FFF)) > 0x0FFF;
+                reg.f.c = alu.u8_add_carry(@truncate(reg.sp), @bitCast(arg.offset));
+                reg.f.h = alu.u8_half_add_carry(@truncate(reg.sp), @bitCast(arg.offset));
+                self.clock.tick_emu(3);
             },
             .ld_hl_sp_plus_imm8 => |arg| {
-                const off = @as(u16, @bitCast(@as(i16, arg.offset)));
-                reg.set_hl(reg.sp +% off);
-                self.clock.tick(2);
+                reg.set_hl(alu.offset_by(reg.sp, arg.offset));
                 reg.f.z = false;
                 reg.f.n = false;
-                reg.f.c = is_sum_overflowing(reg.sp, off);
-                reg.f.h = ((reg.sp & 0x0FFF) + (off & 0x0FFF)) > 0x0FFF;
+                reg.f.c = alu.u8_add_carry(@truncate(reg.sp), @bitCast(arg.offset));
+                reg.f.h = alu.u8_half_add_carry(@truncate(reg.sp), @bitCast(arg.offset));
+                self.clock.tick_emu(2);
             },
             .ld_sp_hl => {
                 reg.sp = reg.get_hl();
-                self.clock.tick(1);
+                self.clock.tick_emu(1);
             },
             .di => {
-                self.int.ime = false;
+                self.int.ime = .DISABLED;
             },
             .ei => {
-                self.int.ime_to_set = true;
+                self.int.ime = .ENABLED_NEXT;
             },
             .rr_r8 => |arg| {
                 const r8 = reg.load_r8(arg.r8);
                 reg.f.c = r8 & 0b1 == 1;
-                const res = (r8 >> 1) | (r8 & 0b1) << 7;
+                const res = (r8 >> 1) | ((r8 & 0b1) << 7);
                 reg.set_r8(arg.r8, res);
                 reg.f.z = res == 0;
                 reg.f.h = false;
                 reg.f.n = false;
-                self.clock.tick(1);
+                self.clock.tick_emu(1);
             },
             .sla_r8 => |arg| {
                 const r8 = reg.load_r8(arg.r8);
@@ -444,7 +454,7 @@ pub const CPU = struct {
                 reg.f.n = false;
                 reg.f.h = false;
                 reg.f.c = result[1] == 1;
-                self.clock.tick(1);
+                self.clock.tick_emu(1);
             },
             .swap_r8 => |arg| {
                 const r8 = reg.load_r8(arg.r8);
@@ -454,7 +464,7 @@ pub const CPU = struct {
                 reg.f.n = false;
                 reg.f.c = false;
                 reg.f.h = false;
-                self.clock.tick(1);
+                self.clock.tick_emu(1);
             },
             .srl_r8 => |arg| {
                 const r8 = reg.load_r8(arg.r8);
@@ -464,7 +474,7 @@ pub const CPU = struct {
                 reg.f.z = res == 0;
                 reg.f.h = false;
                 reg.f.n = false;
-                self.clock.tick(1);
+                self.clock.tick_emu(1);
             },
             .bit_b3_r8 => |arg| {
                 const r8 = reg.load_r8(arg.r8);
@@ -486,329 +496,6 @@ pub const CPU = struct {
             else => {
                 std.debug.print("Unhandled instruction (yet)\n", .{});
                 unreachable;
-            },
-        }
-    }
-
-    /// Same as read instruction but does not increment PC
-    pub fn take_instruction(self: *CPU) Instruction {
-        const pc = self.registers.pc;
-        const instr = self.read_instruction();
-        self.registers.pc = pc;
-        return instr;
-    }
-
-    pub fn read_instruction(self: *CPU) Instruction {
-        const byte = self.mem.read();
-        switch (byte) {
-            0x00 => return .nop,
-            0b00000001...0b00111111 => {
-                // Block 0
-                const byte_part = @as(u3, @truncate(byte & 0b00000111));
-                switch (byte_part) {
-                    0b100 => {
-                        const r8 = R8.read_r8(@truncate((byte & 0b00111000) >> 3));
-                        return .{ .inc_r8 = .{ .r8 = r8 } };
-                    },
-                    0b101 => {
-                        const r8 = R8.read_r8(@truncate((byte & 0b00111000) >> 3));
-                        return .{ .dec_r8 = .{ .r8 = r8 } };
-                    },
-                    0b110 => {
-                        const imm8 = self.mem.read();
-                        const r8 = R8.read_r8(@truncate((byte & 0b00111000) >> 3));
-                        return .{ .ld_r8_imm8 = .{ .imm8 = imm8, .r8 = r8 } };
-                    },
-                    0b111 => {
-                        if (byte == 0b00000111) {
-                            return .rlca;
-                        } else if (byte == 0b00001111) {
-                            return .rrca;
-                        } else if (byte == 0b00010111) {
-                            return .rla;
-                        } else if (byte == 0b00011111) {
-                            return .rra;
-                        } else if (byte == 0b00100111) {
-                            return .daa;
-                        } else if (byte == 0b00101111) {
-                            return .cpl;
-                        } else if (byte == 0b00110111) {
-                            return .scf;
-                        } else if (byte == 0b00111111) {
-                            return .ccf;
-                        }
-                        std.debug.print("Impossible instruction 0b{b:0>8} (0x{x})\n", .{ byte, byte });
-                        unreachable;
-                    },
-                    0b000 => {
-                        if (byte == 0b00011000) {
-                            const imm8 = @as(i8, @bitCast(self.mem.read()));
-                            return .{ .jr_imm8 = .{ .offset = imm8 } };
-                        } else if (byte & 0b11100111 == 0b00100000) {
-                            const cond = Cond.read_cond(@truncate((byte & 0b00011000) >> 3));
-                            const imm8 = @as(i8, @bitCast(self.mem.read()));
-                            return .{ .jr_cond_imm8 = .{ .cond = cond, .offset = imm8 } };
-                        } else if (byte == 0b00010000) {
-                            return .stop;
-                        }
-                        std.debug.print("Impossible instruction 0b{b:0>8} (0x{x})\n", .{ byte, byte });
-                        unreachable;
-                    },
-                    else => {
-                        const nibble = @as(u4, @truncate(byte & 0b00001111));
-                        switch (nibble) {
-                            0b0001 => {
-                                const r16 = R16.read_r16(@truncate((byte & 0b00110000) >> 4));
-                                const imm16 = self.mem.read_imm16();
-                                return .{ .ld_r16_imm16 = .{ .imm16 = imm16, .r16 = r16 } };
-                            },
-                            0b0010 => {
-                                const r16mem = R16Mem.read_r16mem(@truncate((byte & 0b00110000) >> 4));
-                                return .{ .ld_r16mem_a = .{ .r16mem = r16mem } };
-                            },
-                            0b1000 => {
-                                const imm16 = self.mem.read_imm16();
-                                return .{ .ld_imm16_sp = .{ .imm16 = imm16 } };
-                            },
-                            0b0011 => {
-                                const r16 = R16.read_r16(@truncate((byte & 0b00110000) >> 4));
-                                return .{ .inc_r16 = .{ .r16 = r16 } };
-                            },
-                            0b1010 => {
-                                const r16mem = R16Mem.read_r16mem(@truncate((byte & 0b00110000) >> 4));
-                                return .{ .ld_a_r16mem = .{ .r16mem = r16mem } };
-                            },
-                            0b1011 => {
-                                const r16 = R16.read_r16(@truncate((byte & 0b00110000) >> 4));
-                                return .{ .dec_r16 = .{ .r16 = r16 } };
-                            },
-                            0b1001 => {
-                                const r16 = R16.read_r16(@truncate((byte & 0b00110000) >> 4));
-                                return .{ .add_hl_r16 = .{ .r16 = r16 } };
-                            },
-                            else => {
-                                std.debug.print("Impossible instruction 0b{b:0>8} (0x{x})\n", .{ byte, byte });
-                                unreachable;
-                            },
-                        }
-                    },
-                }
-            },
-            0b01000000...0b01111111 => {
-                const r8_dst = R8.read_r8(@truncate((byte & 0b00111000) >> 3));
-                const r8_src = R8.read_r8(@truncate(byte & 0b00000111));
-                if (r8_src == .b and r8_dst == .b) {
-                    return .breakpoint;
-                }
-                if (r8_dst == .hl and r8_src == .hl) {
-                    return .halt;
-                }
-                return .{ .ld_r8_r8 = .{ .r8_dst = r8_dst, .r8_src = r8_src } };
-            },
-            0b10000000...0b10000111 => {
-                const r8 = R8.read_r8(@truncate(byte & 0b00000111));
-                return .{ .add_a_r8 = .{ .r8 = r8 } };
-            },
-            0b10001000...0b10001111 => {
-                const r8 = R8.read_r8(@truncate(byte & 0b00000111));
-                return .{ .adc_a_r8 = .{ .r8 = r8 } };
-            },
-            0b10010000...0b10010111 => {
-                const r8 = R8.read_r8(@truncate(byte & 0b00000111));
-                return .{ .sub_a_r8 = .{ .r8 = r8 } };
-            },
-            0b10011000...0b10011111 => {
-                const r8 = R8.read_r8(@truncate(byte & 0b00000111));
-                return .{ .sbc_a_r8 = .{ .r8 = r8 } };
-            },
-            0b10100000...0b10100111 => {
-                const r8 = R8.read_r8(@truncate(byte & 0b00000111));
-                return .{ .and_a_r8 = .{ .r8 = r8 } };
-            },
-            0b10101000...0b10101111 => {
-                const r8 = R8.read_r8(@truncate(byte & 0b00000111));
-                return .{ .xor_a_r8 = .{ .r8 = r8 } };
-            },
-            0b10110000...0b10110111 => {
-                const r8 = R8.read_r8(@truncate(byte & 0b00000111));
-                return .{ .or_a_r8 = .{ .r8 = r8 } };
-            },
-            0b10111000...0b10111111 => {
-                const r8 = R8.read_r8(@truncate(byte & 0b00000111));
-                return .{ .cp_a_r8 = .{ .r8 = r8 } };
-            },
-            0b11000000...0b11111111 => {
-                // Block 3
-                // immediate arithmetic
-                switch (byte) {
-                    0b11000110 => {
-                        const imm8 = self.mem.read();
-                        return .{ .add_a_imm8 = .{ .imm8 = imm8 } };
-                    },
-                    0b11001110 => {
-                        const imm8 = self.mem.read();
-                        return .{ .adc_a_imm8 = .{ .imm8 = imm8 } };
-                    },
-                    0b11010110 => {
-                        const imm8 = self.mem.read();
-                        return .{ .sub_a_imm8 = .{ .imm8 = imm8 } };
-                    },
-                    0b11100110 => {
-                        const imm8 = self.mem.read();
-                        return .{ .and_a_imm8 = .{ .imm8 = imm8 } };
-                    },
-                    0b11101110 => {
-                        const imm8 = self.mem.read();
-                        return .{ .xor_a_imm8 = .{ .imm8 = imm8 } };
-                    },
-                    0b11110110 => {
-                        const imm8 = self.mem.read();
-                        return .{ .or_a_imm8 = .{ .imm8 = imm8 } };
-                    },
-                    0b11111110 => {
-                        const imm8 = self.mem.read();
-                        return .{ .cp_a_imm8 = .{ .imm8 = imm8 } };
-                    },
-                    else => {},
-                }
-
-                // Jumps, routines, stack, and prefixed
-                if (byte & 0b11100111 == 0b11000000) {
-                    const cc = Cond.read_cond(@truncate((byte & 0b00110000) >> 4));
-                    return .{ .ret_cond = .{ .cond = cc } };
-                } else if (byte == 0b11001001) {
-                    return .ret;
-                } else if (byte == 0b11011001) {
-                    return .reti;
-                } else if (byte & 0b11100111 == 0b11000010) {
-                    const cc = Cond.read_cond(@truncate((byte & 0b00011000) >> 3));
-                    const imm16 = self.mem.read_imm16();
-                    return .{ .jp_cond_imm16 = .{ .cond = cc, .imm16 = imm16 } };
-                } else if (byte == 0b11000011) {
-                    const imm16 = self.mem.read_imm16();
-                    return .{ .jp_imm16 = .{ .imm16 = imm16 } };
-                } else if (byte == 0b11101001) {
-                    return .jp_hl;
-                } else if (byte & 0b11100111 == 0b11000100) {
-                    const cc = Cond.read_cond(@truncate(byte >> 3 & 0b11));
-                    const imm16 = self.mem.read_imm16();
-                    return .{ .call_cond_imm16 = .{ .cond = cc, .imm16 = imm16 } };
-                } else if (byte == 0b11001101) {
-                    const imm16 = self.mem.read_imm16();
-                    return .{ .call_imm16 = .{ .imm16 = imm16 } };
-                } else if (byte & 0b11000111 == 0b11000111) {
-                    const target = ((byte & 0b00111000) >> 3) * 8;
-                    return .{ .rst_tgt3 = .{ .target_addr = target } };
-                } else if (byte & 0b11001111 == 0b11000001) {
-                    const r16stk = R16Stk.read_r16(@truncate((byte & 0b00110000) >> 4));
-                    return .{ .pop_r16stk = .{ .r16stk = r16stk } };
-                } else if (byte & 0b11001111 == 0b11000101) {
-                    const r16stk = R16Stk.read_r16(@truncate((byte & 0b00110000) >> 4));
-                    return .{ .push_r16stk = .{ .r16stk = r16stk } };
-                } else if (byte == 0b11001011) {
-                    // Prefix
-                    const instr = self.mem.read();
-                    if (instr & 0b11000000 == 0) {
-                        switch (@as(u5, @truncate((instr & 0b11111000) >> 3))) {
-                            0b00000 => {
-                                const r8 = R8.read_r8(@truncate(instr & 0b111));
-                                return .{ .rlc_r8 = .{ .r8 = r8 } };
-                            },
-                            0b00001 => {
-                                const r8 = R8.read_r8(@truncate(instr & 0b111));
-                                return .{ .rrc_r8 = .{ .r8 = r8 } };
-                            },
-                            0b00010 => {
-                                const r8 = R8.read_r8(@truncate(instr & 0b111));
-                                return .{ .rl_r8 = .{ .r8 = r8 } };
-                            },
-                            0b00011 => {
-                                const r8 = R8.read_r8(@truncate(instr & 0b111));
-                                return .{ .rr_r8 = .{ .r8 = r8 } };
-                            },
-                            0b00100 => {
-                                const r8 = R8.read_r8(@truncate(instr & 0b111));
-                                return .{ .sla_r8 = .{ .r8 = r8 } };
-                            },
-                            0b00101 => {
-                                const r8 = R8.read_r8(@truncate(instr & 0b111));
-                                return .{ .sra_r8 = .{ .r8 = r8 } };
-                            },
-                            0b00110 => {
-                                const r8 = R8.read_r8(@truncate(instr & 0b111));
-                                return .{ .swap_r8 = .{ .r8 = r8 } };
-                            },
-                            0b00111 => {
-                                const r8 = R8.read_r8(@truncate(instr & 0b111));
-                                return .{ .srl_r8 = .{ .r8 = r8 } };
-                            },
-                            else => {
-                                std.debug.print("Unkown inner instruction: 0b{b:0>8} (0x{x:0>2})\n", .{ instr, instr });
-                                unreachable;
-                            },
-                        }
-                    } else {
-                        if (instr & 0b11000000 == 0b01000000) {
-                            const b3 = @as(u3, @truncate((instr & 0b00111000) >> 3));
-                            const r8 = R8.read_r8(@truncate(instr & 0b00000111));
-                            return .{ .bit_b3_r8 = .{ .bit_index = b3, .r8 = r8 } };
-                        } else if (instr & 0b11000000 == 0b10000000) {
-                            const b3 = @as(u3, @truncate((instr & 0b00111000) >> 3));
-                            const r8 = R8.read_r8(@truncate(instr & 0b00000111));
-                            return .{ .res_b3_r8 = .{ .bit_index = b3, .r8 = r8 } };
-                        } else if (instr & 0b11000000 == 0b11000000) {
-                            const b3 = @as(u3, @truncate((instr & 0b00111000) >> 3));
-                            const r8 = R8.read_r8(@truncate(instr & 0b00000111));
-                            return .{ .set_b3_r8 = .{ .bit_index = b3, .r8 = r8 } };
-                        }
-                        std.debug.print("Unkown inner instruction: 0b{b:0>8} (0x{x:0>2})\n", .{ instr, instr });
-                        unreachable;
-                    }
-                }
-
-                // Loads and some others
-                switch (byte) {
-                    0b11100010 => {
-                        return .ldh_c_a;
-                    },
-                    0b11100000 => {
-                        const imm8 = self.mem.read();
-                        return .{ .ldh_imm8_a = .{ .imm8 = imm8 } };
-                    },
-                    0b11101010 => {
-                        const imm16 = self.mem.read_imm16();
-                        return .{ .ld_imm16_a = .{ .imm16 = imm16 } };
-                    },
-                    0b11110000 => {
-                        const imm8 = self.mem.read();
-                        return .{ .ldh_a_imm8 = .{ .imm8 = imm8 } };
-                    },
-                    0b11111010 => {
-                        const imm16 = self.mem.read_imm16();
-                        return .{ .ld_a_imm16 = .{ .imm16 = imm16 } };
-                    },
-                    0b11101000 => {
-                        const imm8: i8 = @bitCast(self.mem.read());
-                        return .{ .add_sp_imm8 = .{ .offset = imm8 } };
-                    },
-                    0b11111000 => {
-                        const imm8: i8 = @bitCast(self.mem.read());
-                        return .{ .ld_hl_sp_plus_imm8 = .{ .offset = imm8 } };
-                    },
-                    0b11111001 => {
-                        return .ld_sp_hl;
-                    },
-                    0b11110011 => {
-                        return .di;
-                    },
-                    0b11111011 => {
-                        return .ei;
-                    },
-                    else => {
-                        std.debug.print("Unkown instruction: 0b{b:0>8} (0x{x:0>2})\n", .{ byte, byte });
-                        return .invalid;
-                    },
-                }
             },
         }
     }
@@ -943,31 +630,16 @@ const Registers = struct {
     }
 
     pub fn set_r8(self: *Registers, r8: R8, value: u8) void {
+        const mem = &self.get_cpu().*.mem;
         switch (r8) {
-            .b => {
-                self.b = value;
-            },
-            .c => {
-                self.c = value;
-            },
-            .d => {
-                self.d = value;
-            },
-            .e => {
-                self.e = value;
-            },
-            .h => {
-                self.h = value;
-            },
-            .l => {
-                self.l = value;
-            },
-            .hl => {
-                self.get_cpu().mem.write(self.get_hl(), value);
-            },
-            .a => {
-                self.a = value;
-            },
+            .b => self.b = value,
+            .c => self.c = value,
+            .d => self.d = value,
+            .e => self.e = value,
+            .h => self.h = value,
+            .l => self.l = value,
+            .hl => mem.write(self.get_hl(), value),
+            .a => self.a = value,
         }
     }
 
@@ -1017,12 +689,12 @@ const Registers = struct {
 
     pub fn dump(self: *Registers) void {
         const print = std.debug.print;
-        print("af: 0x{X:0>4} (0b{b:0>4})\n", .{ self.get_af(), self.f.get_f() >> 4 });
-        print("bc: 0x{X:0>4}\n", .{self.get_bc()});
-        print("de: 0x{X:0>4}\n", .{self.get_de()});
-        print("hl: 0x{X:0>4}\n", .{self.get_hl()});
-        print("sp: 0x{X:0>4}\n", .{self.sp});
-        print("pc: 0x{X:0>4}\n", .{self.pc});
+        print("af: 0x{x:0>4} (0b{b:0>4})\n", .{ self.get_af(), self.f.get_f() >> 4 });
+        print("bc: 0x{x:0>4}\n", .{self.get_bc()});
+        print("de: 0x{x:0>4}\n", .{self.get_de()});
+        print("hl: 0x{x:0>4}\n", .{self.get_hl()});
+        print("sp: 0x{x:0>4}\n", .{self.sp});
+        print("pc: 0x{x:0>4}\n", .{self.pc});
     }
 };
 
@@ -1046,55 +718,6 @@ const Flags = struct {
             .nc => return !self.c,
             .c => return self.c,
         }
-    }
-};
-
-const V_BLANK_MASK = 0b00000001;
-const IE = 0xFFFF;
-const IF = 0xFF0F;
-
-pub const Interrupts = struct {
-    ime: bool,
-    ime_to_set: bool,
-    halted: bool,
-    pub fn init() Interrupts {
-        return .{
-            .ime = false,
-            .ime_to_set = false,
-            .halted = false,
-        };
-    }
-
-    pub fn get_cpu(self: *Interrupts) *CPU {
-        return @alignCast(@fieldParentPtr("int", self));
-    }
-
-    pub fn get_ie(self: *Interrupts) u8 {
-        return self.get_cpu().mem.read_at(IE);
-    }
-
-    pub fn get_if(self: *Interrupts) u8 {
-        return self.get_cpu().mem.read_at(IF);
-    }
-
-    pub fn handle_interrupts(self: *Interrupts) void {
-        if (self.get_ie() & self.get_if() != 0) {
-            self.halted = false;
-        }
-        if (!self.ime) return;
-        // std.debug.print("Handling interrupts\n", .{});
-        if (self.get_if() & V_BLANK_MASK != 0 and self.get_ie() & V_BLANK_MASK != 0) {
-            std.debug.print("===VBLANK===\n", .{});
-            self.ime = true;
-            self.get_cpu().mem.data[IF] &= 0b11111110;
-            self.get_cpu().clock.tick(2);
-            self.get_cpu().execute_instruction(.{ .call_imm16 = .{ .imm16 = 0x40 } });
-        }
-        return;
-    }
-
-    pub fn request_vblank(self: *Interrupts) void {
-        self.get_cpu().mem.data[IF] |= 0b00000001;
     }
 };
 

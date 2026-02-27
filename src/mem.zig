@@ -7,6 +7,7 @@ pub const Memory = struct {
 
     pub fn init(all: Allocator) Memory {
         const data = all.alloc(u8, 0xFFFF + 1) catch std.debug.panic("No memory...", .{});
+        @memset(data[0 .. 0xFFFF + 1], 0xFF);
         return .{ .data = data };
     }
 
@@ -28,8 +29,19 @@ pub const Memory = struct {
     pub fn read_imm16(self: *Memory) u16 {
         const lsb = @as(u16, self.read());
         const msb = @as(u16, self.read());
-        const imm16 = lsb | (msb << 8);
+        const imm16 = (msb << 8) | lsb;
         return imm16;
+    }
+
+    pub fn read_imm16_at(self: *Memory, addr: u16) u16 {
+        const lsb = @as(u16, self.read_at(addr));
+        const msb = @as(u16, self.read_at(addr + 1));
+        const imm16 = (msb << 8) | lsb;
+        return imm16;
+    }
+
+    pub fn read_i8_at(self: *Memory, addr: u16) i8 {
+        return @bitCast(self.read_at(addr));
     }
 
     pub fn read_at(self: *Memory, addr: u16) u8 {
@@ -44,8 +56,8 @@ pub const Memory = struct {
                 switch (addr) {
                     // zig fmt: off
                     0xFF00, 0xFF40, 
-                    0xFF41,
-                    0xFF44, 0xFF46 
+                    0xFF41...0xFF44,
+                    0xFF46 
                     // zig fmt: on
                     => {
                         return self.data[addr];
@@ -106,9 +118,8 @@ pub const Memory = struct {
                     0xFF30...0xFF40, 
                     0xFF42, 0xFF43, 
                     0xFF45,
-                    0xFF47...0xFF4B, 
-                    0xFF4F...0xFF55, 
-                    0xFF68...0xFF70 
+                    0xFF47...0xFF4B,
+                    0xFF50,
                     // zig fmt: on
                     => {
                         self.data[addr] = value;
@@ -134,8 +145,16 @@ pub const Memory = struct {
                         self.data[addr] = value;
                         self.execute_dma();
                     },
-                    0xFF7F => {
-                        // Unused
+                    // zig fmt: off
+                    0xFF15, 
+                    0xFF1F, 
+                    0xFF27...0xFF2F,
+                    0xFF44, 
+                    0xFF4C...0xFF4F,
+                    0xFF51...0xFF7F,
+                    // zig fmt: on
+                    => {
+                        // Unused and or CGB only
                         return;
                     },
                     else => {
@@ -190,7 +209,7 @@ pub const Memory = struct {
     fn execute_dma(self: *Memory) void {
         const source = @as(u16, self.read_at(0xFF46)) << 8;
         @memcpy(self.data[0xFE00..0xFE9F], self.data[source..(source + 0x9F)]);
-        self.get_cpu().clock.tick(160);
+        self.get_cpu().clock.tick_emu(160);
     }
     fn write_mask(self: *Memory, addr: u16, value: u8, mask: u8) void {
         self.data[addr] = (self.data[addr] & ~mask) | (value & mask);
