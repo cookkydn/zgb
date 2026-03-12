@@ -9,6 +9,16 @@ pub fn build(b: *std.Build) void {
         .target = target,
     });
 
+    const ui_mod = b.createModule(.{
+        .root_source_file = b.path("src/ui/root.zig"),
+        .optimize = optimize,
+    });
+
+    const emu_mod = b.createModule(.{
+        .root_source_file = b.path("src/emu/root.zig"),
+        .optimize = optimize,
+    });
+
     const exe = b.addExecutable(.{
         .name = "zgb",
         .root_module = b.createModule(.{
@@ -20,6 +30,11 @@ pub fn build(b: *std.Build) void {
             },
         }),
     });
+
+    exe.root_module.addImport("ui", ui_mod);
+    exe.root_module.addImport("emu", emu_mod);
+    emu_mod.addImport("ui", ui_mod);
+
     b.installArtifact(exe);
     exe.linkLibC();
     const zsdl = b.dependency("zsdl", .{});
@@ -27,6 +42,8 @@ pub fn build(b: *std.Build) void {
     exe.root_module.addImport("zsdl2", zsdl.module("zsdl2"));
     exe.root_module.addImport("zsdl2_ttf", zsdl.module("zsdl2_ttf"));
     exe.root_module.addImport("zsdl2_image", zsdl.module("zsdl2_image"));
+    ui_mod.addImport("zsdl2", zsdl.module("zsdl2"));
+    ui_mod.addImport("zsdl2_ttf", zsdl.module("zsdl2_ttf"));
     linkSdlLibs(exe);
     @import("zsdl").prebuilt_sdl2.addLibraryPathsTo(exe);
     if (@import("zsdl").prebuilt_sdl2.install(b, target.result, .bin, .{

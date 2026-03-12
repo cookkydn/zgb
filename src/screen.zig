@@ -2,7 +2,7 @@ const sdl = @import("zsdl2");
 const std = @import("std");
 const CPU = @import("cpu.zig").CPU;
 const Memory = @import("mem.zig").Memory;
-
+const sdl_ttf = @import("zsdl2_ttf");
 const LCD_STATUS = 0xFF41;
 const LCDC = 0xFF40;
 
@@ -16,20 +16,25 @@ pub const Screen = struct {
     x_pos: u16,
     cycle_count: u32,
     tiles: [384]Tile,
+    last_render: i64,
     pub fn get_cpu(self: *Screen) *CPU {
         return @fieldParentPtr("screen", self);
     }
 
     pub fn init() !Screen {
         try sdl.init(.{ .audio = true, .video = true });
-
+        try sdl_ttf.init();
         const window = try sdl.Window.create(
             "zgb",
             sdl.Window.pos_undefined,
             sdl.Window.pos_undefined,
             256 * 2,
             256 * 2,
-            .{ .opengl = true, .allow_highdpi = false },
+            .{
+                .resizable = true,
+                .opengl = true,
+                .allow_highdpi = true,
+            },
         );
         const renderer = try sdl.createRenderer(window, null, .{ .accelerated = true, .present_vsync = true, .software = false, .target_texture = false });
 
@@ -39,6 +44,7 @@ pub const Screen = struct {
             .x_pos = 0,
             .cycle_count = 0,
             .tiles = .{Tile.empty()} ** 384,
+            .last_render = 0,
         };
     }
 
@@ -91,6 +97,7 @@ pub const Screen = struct {
     }
 
     pub fn render(self: *Screen) !void {
+        // const delta = std.time.microTimestamp() - self.last_render;
         const mem = self.get_cpu().mem.data;
         if (self.is_lcd_enabled()) {
             try self.renderer.setDrawColor(.{ .r = 0, .g = 0, .b = 0, .a = 0 });
@@ -113,7 +120,6 @@ pub const Screen = struct {
                     }
                 }
             }
-
             // for (35..67) |x| {
             //     for (0..12) |y| {
             //         const tile_addr = 0x8000 + (@as(u16, @truncate(x - 35)) + @as(u16, @truncate(y)) * 32) * 16;
@@ -122,12 +128,19 @@ pub const Screen = struct {
             //     }
             // }
             try self.draw_bg_area();
+            const font = try sdl_ttf.Font.open("../../fonts/Hack-Regular.ttf", 24);
+            const surface = try font.renderTextBlended("FPS:", .{ .r = 255, .g = 255, .b = 255, .a = 255 });
+            const texture = try self.renderer.createTextureFromSurface(surface);
+            try self.renderer.setDrawColor(.{ .r = 0, .g = 0, .b = 0, .a = 50 });
+            try self.renderer.drawRectF(.{ .x = @floatFromInt(surface.clip_rect.x), .y = @floatFromInt(surface.clip_rect.y), .w = @floatFromInt(surface.clip_rect.w), .h = @floatFromInt(surface.clip_rect.h) });
+            try sdl.renderCopy(self.renderer, texture, &surface.clip_rect, &surface.clip_rect);
             sdl.renderPresent(self.renderer);
         } else {
             try self.renderer.setDrawColor(.{ .r = 255, .g = 255, .b = 255, .a = 255 });
             try self.renderer.clear();
             sdl.renderPresent(self.renderer);
         }
+        self.last_render = std.time.microTimestamp();
     }
 
     fn draw_bg_area(self: *Screen) !void {

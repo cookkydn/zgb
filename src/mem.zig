@@ -19,33 +19,7 @@ pub const Memory = struct {
         return @fieldParentPtr("mem", self);
     }
 
-    pub fn read(self: *Memory) u8 {
-        const cpu = self.get_cpu();
-        const byte = self.read_at(cpu.registers.pc);
-        cpu.registers.pc +%= 1;
-        return byte;
-    }
-
-    pub fn read_imm16(self: *Memory) u16 {
-        const lsb = @as(u16, self.read());
-        const msb = @as(u16, self.read());
-        const imm16 = (msb << 8) | lsb;
-        return imm16;
-    }
-
-    pub fn read_imm16_at(self: *Memory, addr: u16) u16 {
-        const lsb = @as(u16, self.read_at(addr));
-        const msb = @as(u16, self.read_at(addr + 1));
-        const imm16 = (msb << 8) | lsb;
-        return imm16;
-    }
-
-    pub fn read_i8_at(self: *Memory, addr: u16) i8 {
-        return @bitCast(self.read_at(addr));
-    }
-
     pub fn read_at(self: *Memory, addr: u16) u8 {
-        if (!can_read(addr)) return 0xFF;
         switch (Memory.addr_type(addr)) {
             .RAM, .ROM, .INTERRUPT => {
                 return self.data[addr];
@@ -83,23 +57,6 @@ pub const Memory = struct {
                 }
             },
         }
-    }
-
-    pub fn push(self: *Memory, value: u16) void {
-        const sp = &self.get_cpu().registers.sp;
-        sp.* -= 1;
-        self.data[sp.*] = @truncate(value >> 8);
-        sp.* -= 1;
-        self.data[sp.*] = @truncate(value);
-    }
-
-    pub fn pop(self: *Memory) u16 {
-        const sp = &self.get_cpu().registers.sp;
-        const l = @as(u16, self.data[sp.*]);
-        sp.* += 1;
-        const h = @as(u16, self.data[sp.*]);
-        sp.* += 1;
-        return h << 8 | l;
     }
 
     pub fn write(self: *Memory, addr: u16, value: u8) void {
@@ -178,18 +135,6 @@ pub const Memory = struct {
         }
     }
 
-    /// Return true if memory region is readable
-    /// This switch quite simple and does not represent the actual readability of the GB rom
-    fn can_read(addr: u16) bool {
-        return switch (addr) {
-            0x0000...0xDFFF => true,
-            0xE000...0xFDFF => false,
-            0xFE00...0xFE9F => true,
-            0xFEA0...0xFEFF => false,
-            0xFF00...0xFFFF => true,
-        };
-    }
-
     fn addr_type(addr: u16) Memory_type {
         return switch (addr) {
             0x0000...0x7FFF => return .ROM,
@@ -211,6 +156,7 @@ pub const Memory = struct {
         @memcpy(self.data[0xFE00..0xFE9F], self.data[source..(source + 0x9F)]);
         self.get_cpu().clock.tick_emu(160);
     }
+
     fn write_mask(self: *Memory, addr: u16, value: u8, mask: u8) void {
         self.data[addr] = (self.data[addr] & ~mask) | (value & mask);
     }

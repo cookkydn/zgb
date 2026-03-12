@@ -19,6 +19,10 @@ pub fn u8_half_sub_carry(a: u8, b: u8) bool {
     return ((a & 0xF) -% (b & 0xF)) > 0xF;
 }
 
+pub fn u16_add_carry(a: u16, b: u16) bool {
+    return @as(u32, a) + @as(u32, b) > 0xFFFF;
+}
+
 test "offset_by" {
     const expect = @import("std").testing.expectEqual;
     try expect(offset_by(0, 1), 1);

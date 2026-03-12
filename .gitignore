@@ -1,5 +1,6 @@
 /.vscode
 /.zig-cache
 /carts
-/tetris.asm
 /zig-out
+/fonts
+/bios

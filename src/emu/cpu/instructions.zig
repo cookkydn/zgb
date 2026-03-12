@@ -1,6 +1,5 @@
 const std = @import("std");
-const Memory = @import("../mem.zig").Memory;
-const Reader = @import("../mem/reader.zig").Reader;
+const Bus = @import("../memory/bus.zig").Bus;
 
 pub const Instruction = union(enum) {
     /// No-operation
@@ -217,81 +216,130 @@ pub const Instruction = union(enum) {
         }
     }
 
-    pub fn from_mem(r: *Reader) Instruction {
-        switch (r.read_u8()) {
+    pub fn from_bus(bus: *Bus) Instruction {
+        switch (bus.read_u8()) {
             // --- 0x00 to 0x0F ---
             0x00 => return .nop,
-            0x01 => return .{ .ld_r16_imm16 = .{ .r16 = .bc, .imm16 = r.read_u16() } },
+            0x01 => return .{ .ld_r16_imm16 = .{ .r16 = .bc, .imm16 = bus.read_u16() } },
             0x02 => return .{ .ld_r16mem_a = .{ .r16mem = .bc } },
-
+            0x03 => return .{ .inc_r16 = .{ .r16 = .bc } },
+            0x04 => return .{ .inc_r8 = .{ .r8 = .b } },
             0x05 => return .{ .dec_r8 = .{ .r8 = .b } },
-            0x06 => return .{ .ld_r8_imm8 = .{ .r8 = .b, .imm8 = r.read_u8() } },
-
+            0x06 => return .{ .ld_r8_imm8 = .{ .r8 = .b, .imm8 = bus.read_u8() } },
+            0x07 => return .rlca,
+            0x08 => return .{ .ld_imm16_sp = .{ .imm16 = bus.read_u16() } },
+            0x09 => return .{ .add_hl_r16 = .{ .r16 = .bc } },
+            0x0A => return .{ .ld_a_r16mem = .{ .r16mem = .bc } },
             0x0B => return .{ .dec_r16 = .{ .r16 = .bc } },
             0x0C => return .{ .inc_r8 = .{ .r8 = .c } },
             0x0D => return .{ .dec_r8 = .{ .r8 = .c } },
-            0x0E => return .{ .ld_r8_imm8 = .{ .r8 = .c, .imm8 = r.read_u8() } },
+            0x0E => return .{ .ld_r8_imm8 = .{ .r8 = .c, .imm8 = bus.read_u8() } },
             0x0F => return .rrca,
             // --- 0x10 to 0x1F ---
             0x10 => return .stop,
-            0x11 => return .{ .ld_r16_imm16 = .{ .r16 = .de, .imm16 = r.read_u16() } },
+            0x11 => return .{ .ld_r16_imm16 = .{ .r16 = .de, .imm16 = bus.read_u16() } },
             0x12 => return .{ .ld_r16mem_a = .{ .r16mem = .de } },
             0x13 => return .{ .inc_r16 = .{ .r16 = .de } },
 
-            0x16 => return .{ .ld_r8_imm8 = .{ .r8 = .d, .imm8 = r.read_u8() } },
-
-            0x18 => return .{ .jr_imm8 = .{ .offset = r.read_i8() } },
+            0x16 => return .{ .ld_r8_imm8 = .{ .r8 = .d, .imm8 = bus.read_u8() } },
+            0x17 => return .rla,
+            0x18 => return .{ .jr_imm8 = .{ .offset = bus.read_i8() } },
             0x19 => return .{ .add_hl_r16 = .{ .r16 = .de } },
             0x1A => return .{ .ld_a_r16mem = .{ .r16mem = .de } },
 
             0x1C => return .{ .inc_r8 = .{ .r8 = .e } },
+
+            0x1E => return .{ .ld_r8_imm8 = .{ .r8 = .e, .imm8 = bus.read_u8() } },
             // --- 0x20 to 0x2F ---
-            0x20 => return .{ .jr_cond_imm8 = .{ .cond = .nz, .offset = r.read_i8() } },
-            0x21 => return .{ .ld_r16_imm16 = .{ .r16 = .hl, .imm16 = r.read_u16() } },
+            0x20 => return .{ .jr_cond_imm8 = .{ .cond = .nz, .offset = bus.read_i8() } },
+            0x21 => return .{ .ld_r16_imm16 = .{ .r16 = .hl, .imm16 = bus.read_u16() } },
             0x22 => return .{ .ld_r16mem_a = .{ .r16mem = .hli } },
             0x23 => return .{ .inc_r16 = .{ .r16 = .hl } },
 
-            0x28 => return .{ .jr_cond_imm8 = .{ .cond = .z, .offset = r.read_i8() } },
-
+            0x27 => return .daa,
+            0x28 => return .{ .jr_cond_imm8 = .{ .cond = .z, .offset = bus.read_i8() } },
+            0x29 => return .{ .add_hl_r16 = .{ .r16 = .hl } },
             0x2A => return .{ .ld_a_r16mem = .{ .r16mem = .hli } },
-
+            0x2B => return .{ .dec_r16 = .{ .r16 = .hl } },
             0x2C => return .{ .inc_r8 = .{ .r8 = .l } },
-
+            0x2D => return .{ .dec_r8 = .{ .r8 = .l } },
+            0x2E => return .{ .ld_r8_imm8 = .{ .r8 = .l, .imm8 = bus.read_u8() } },
             0x2F => return .cpl,
             // --- 0x30 to 0x3F ---
-            0x30 => return .{ .jr_cond_imm8 = .{ .cond = .nc, .offset = r.read_i8() } },
-            0x31 => return .{ .ld_r16_imm16 = .{ .r16 = .sp, .imm16 = r.read_u16() } },
+            0x30 => return .{ .jr_cond_imm8 = .{ .cond = .nc, .offset = bus.read_i8() } },
+            0x31 => return .{ .ld_r16_imm16 = .{ .r16 = .sp, .imm16 = bus.read_u16() } },
             0x32 => return .{ .ld_r16mem_a = .{ .r16mem = .hld } },
 
             0x34 => return .{ .inc_r8 = .{ .r8 = .hl } },
             0x35 => return .{ .dec_r8 = .{ .r8 = .hl } },
-            0x36 => return .{ .ld_r8_imm8 = .{ .r8 = .hl, .imm8 = r.read_u8() } },
+            0x36 => return .{ .ld_r8_imm8 = .{ .r8 = .hl, .imm8 = bus.read_u8() } },
+
+            0x3A => return .{ .ld_a_r16mem = .{ .r16mem = .hld } },
 
             0x3C => return .{ .inc_r8 = .{ .r8 = .a } },
             0x3D => return .{ .dec_r8 = .{ .r8 = .a } },
-            0x3E => return .{ .ld_r8_imm8 = .{ .r8 = .a, .imm8 = r.read_u8() } },
+            0x3E => return .{ .ld_r8_imm8 = .{ .r8 = .a, .imm8 = bus.read_u8() } },
+
             // --- 0x40 to 0x4F ---
             0x40 => return .{ .ld_r8_r8 = .{ .r8_dst = .b, .r8_src = .b } },
             0x41 => return .{ .ld_r8_r8 = .{ .r8_dst = .b, .r8_src = .c } },
-
+            0x42 => return .{ .ld_r8_r8 = .{ .r8_dst = .b, .r8_src = .d } },
+            0x43 => return .{ .ld_r8_r8 = .{ .r8_dst = .b, .r8_src = .e } },
+            0x44 => return .{ .ld_r8_r8 = .{ .r8_dst = .b, .r8_src = .h } },
+            0x45 => return .{ .ld_r8_r8 = .{ .r8_dst = .b, .r8_src = .l } },
+            0x46 => return .{ .ld_r8_r8 = .{ .r8_dst = .b, .r8_src = .hl } },
             0x47 => return .{ .ld_r8_r8 = .{ .r8_dst = .b, .r8_src = .a } },
-
+            0x48 => return .{ .ld_r8_r8 = .{ .r8_dst = .c, .r8_src = .b } },
+            0x49 => return .{ .ld_r8_r8 = .{ .r8_dst = .c, .r8_src = .c } },
+            0x4A => return .{ .ld_r8_r8 = .{ .r8_dst = .c, .r8_src = .d } },
+            0x4B => return .{ .ld_r8_r8 = .{ .r8_dst = .c, .r8_src = .e } },
+            0x4C => return .{ .ld_r8_r8 = .{ .r8_dst = .c, .r8_src = .h } },
+            0x4D => return .{ .ld_r8_r8 = .{ .r8_dst = .c, .r8_src = .l } },
+            0x4E => return .{ .ld_r8_r8 = .{ .r8_dst = .c, .r8_src = .hl } },
             0x4F => return .{ .ld_r8_r8 = .{ .r8_dst = .c, .r8_src = .a } },
             // --- 0x50 to 0x5F ---
             0x50 => return .{ .ld_r8_r8 = .{ .r8_dst = .d, .r8_src = .b } },
             0x51 => return .{ .ld_r8_r8 = .{ .r8_dst = .d, .r8_src = .c } },
-
+            0x52 => return .{ .ld_r8_r8 = .{ .r8_dst = .d, .r8_src = .d } },
+            0x53 => return .{ .ld_r8_r8 = .{ .r8_dst = .d, .r8_src = .e } },
+            0x54 => return .{ .ld_r8_r8 = .{ .r8_dst = .d, .r8_src = .h } },
+            0x55 => return .{ .ld_r8_r8 = .{ .r8_dst = .d, .r8_src = .l } },
             0x56 => return .{ .ld_r8_r8 = .{ .r8_dst = .d, .r8_src = .hl } },
-
+            0x57 => return .{ .ld_r8_r8 = .{ .r8_dst = .d, .r8_src = .a } },
+            0x58 => return .{ .ld_r8_r8 = .{ .r8_dst = .e, .r8_src = .b } },
+            0x59 => return .{ .ld_r8_r8 = .{ .r8_dst = .e, .r8_src = .c } },
+            0x5A => return .{ .ld_r8_r8 = .{ .r8_dst = .e, .r8_src = .d } },
+            0x5B => return .{ .ld_r8_r8 = .{ .r8_dst = .e, .r8_src = .e } },
+            0x5C => return .{ .ld_r8_r8 = .{ .r8_dst = .e, .r8_src = .h } },
+            0x5D => return .{ .ld_r8_r8 = .{ .r8_dst = .e, .r8_src = .l } },
             0x5E => return .{ .ld_r8_r8 = .{ .r8_dst = .e, .r8_src = .hl } },
             0x5F => return .{ .ld_r8_r8 = .{ .r8_dst = .e, .r8_src = .a } },
             // --- 0x60 to 0x6F ---
             0x60 => return .{ .ld_r8_r8 = .{ .r8_dst = .h, .r8_src = .b } },
             0x61 => return .{ .ld_r8_r8 = .{ .r8_dst = .h, .r8_src = .c } },
+            0x62 => return .{ .ld_r8_r8 = .{ .r8_dst = .h, .r8_src = .d } },
+            0x63 => return .{ .ld_r8_r8 = .{ .r8_dst = .h, .r8_src = .e } },
+            0x64 => return .{ .ld_r8_r8 = .{ .r8_dst = .h, .r8_src = .h } },
+            0x65 => return .{ .ld_r8_r8 = .{ .r8_dst = .h, .r8_src = .l } },
+            0x66 => return .{ .ld_r8_r8 = .{ .r8_dst = .h, .r8_src = .hl } },
+            0x67 => return .{ .ld_r8_r8 = .{ .r8_dst = .h, .r8_src = .a } },
+            0x68 => return .{ .ld_r8_r8 = .{ .r8_dst = .l, .r8_src = .b } },
+            0x69 => return .{ .ld_r8_r8 = .{ .r8_dst = .l, .r8_src = .c } },
+            0x6A => return .{ .ld_r8_r8 = .{ .r8_dst = .l, .r8_src = .d } },
+            0x6B => return .{ .ld_r8_r8 = .{ .r8_dst = .l, .r8_src = .e } },
+            0x6C => return .{ .ld_r8_r8 = .{ .r8_dst = .l, .r8_src = .h } },
+            0x6D => return .{ .ld_r8_r8 = .{ .r8_dst = .l, .r8_src = .l } },
+            0x6E => return .{ .ld_r8_r8 = .{ .r8_dst = .l, .r8_src = .hl } },
+            0x6F => return .{ .ld_r8_r8 = .{ .r8_dst = .l, .r8_src = .a } },
             // --- 0x70 to 0x7F ---
             0x70 => return .{ .ld_r8_r8 = .{ .r8_dst = .hl, .r8_src = .b } },
             0x71 => return .{ .ld_r8_r8 = .{ .r8_dst = .hl, .r8_src = .c } },
-
+            0x72 => return .{ .ld_r8_r8 = .{ .r8_dst = .hl, .r8_src = .d } },
+            0x73 => return .{ .ld_r8_r8 = .{ .r8_dst = .hl, .r8_src = .e } },
+            0x74 => return .{ .ld_r8_r8 = .{ .r8_dst = .hl, .r8_src = .h } },
+            0x75 => return .{ .ld_r8_r8 = .{ .r8_dst = .hl, .r8_src = .l } },
+            0x76 => return .halt,
+            0x77 => return .{ .ld_r8_r8 = .{ .r8_dst = .hl, .r8_src = .a } },
             0x78 => return .{ .ld_r8_r8 = .{ .r8_dst = .a, .r8_src = .b } },
             0x79 => return .{ .ld_r8_r8 = .{ .r8_dst = .a, .r8_src = .c } },
             0x7A => return .{ .ld_r8_r8 = .{ .r8_dst = .a, .r8_src = .d } },
@@ -304,10 +352,14 @@ pub const Instruction = union(enum) {
             0x80 => return .{ .add_a_r8 = .{ .r8 = .b } },
             0x81 => return .{ .add_a_r8 = .{ .r8 = .c } },
 
+            0x85 => return .{ .add_a_r8 = .{ .r8 = .l } },
+            0x86 => return .{ .add_a_r8 = .{ .r8 = .hl } },
             0x87 => return .{ .add_a_r8 = .{ .r8 = .a } },
+
             // --- 0x90 to 0x9F ---
             0x90 => return .{ .sub_a_r8 = .{ .r8 = .b } },
             0x91 => return .{ .sub_a_r8 = .{ .r8 = .c } },
+
             // --- 0xA0 to 0xAF ---
             0xA0 => return .{ .and_a_r8 = .{ .r8 = .b } },
             0xA1 => return .{ .and_a_r8 = .{ .r8 = .c } },
@@ -328,77 +380,105 @@ pub const Instruction = union(enum) {
             // --- 0xB0 to 0xBF ---
             0xB0 => return .{ .or_a_r8 = .{ .r8 = .b } },
             0xB1 => return .{ .or_a_r8 = .{ .r8 = .c } },
+
+            0xBE => return .{ .cp_a_r8 = .{ .r8 = .hl } },
             // --- 0xC0 to 0xCF ---
             0xC0 => return .{ .ret_cond = .{ .cond = .nz } },
             0xC1 => return .{ .pop_r16stk = .{ .r16stk = .bc } },
-            0xC2 => return .{ .jp_cond_imm16 = .{ .cond = .nz, .imm16 = r.read_u16() } },
-            0xC3 => return .{ .jp_imm16 = .{ .imm16 = r.read_u16() } },
-
+            0xC2 => return .{ .jp_cond_imm16 = .{ .cond = .nz, .imm16 = bus.read_u16() } },
+            0xC3 => return .{ .jp_imm16 = .{ .imm16 = bus.read_u16() } },
+            0xC4 => return .{ .call_cond_imm16 = .{ .cond = .nz, .imm16 = bus.read_u16() } },
             0xC5 => return .{ .push_r16stk = .{ .r16stk = .bc } },
-
+            0xC6 => return .{ .add_a_imm8 = .{ .imm8 = bus.read_u8() } },
+            0xC7 => return .{ .rst_tgt3 = .{ .target_addr = 0x00 } },
             0xC8 => return .{ .ret_cond = .{ .cond = .z } },
             0xC9 => return .ret,
-            0xCA => return .{ .jp_cond_imm16 = .{ .cond = .z, .imm16 = r.read_u16() } },
-            0xCB => return Instruction.prefix_from_mem(r),
+            0xCA => return .{ .jp_cond_imm16 = .{ .cond = .z, .imm16 = bus.read_u16() } },
+            0xCB => return Instruction.prefix_from_bus(bus),
+            0xCC => return .{ .call_cond_imm16 = .{ .cond = .z, .imm16 = bus.read_u16() } },
+            0xCD => return .{ .call_imm16 = .{ .imm16 = bus.read_u16() } },
 
-            0xCD => return .{ .call_imm16 = .{ .imm16 = r.read_u16() } },
             // --- 0xD0 to 0xDF ---
             0xD0 => return .{ .ret_cond = .{ .cond = .nc } },
             0xD1 => return .{ .pop_r16stk = .{ .r16stk = .de } },
 
             0xD5 => return .{ .push_r16stk = .{ .r16stk = .de } },
+            0xD6 => return .{ .sub_a_imm8 = .{ .imm8 = bus.read_u8() } },
 
             0xD9 => return .reti,
+
             // --- 0xE0 to 0xEF ---
-            0xE0 => return .{ .ldh_imm8_a = .{ .imm8 = r.read_u8() } },
+            0xE0 => return .{ .ldh_imm8_a = .{ .imm8 = bus.read_u8() } },
             0xE1 => return .{ .pop_r16stk = .{ .r16stk = .hl } },
             0xE2 => return .ldh_c_a,
 
             0xE5 => return .{ .push_r16stk = .{ .r16stk = .hl } },
-            0xE6 => return .{ .and_a_imm8 = .{ .imm8 = r.read_u8() } },
+            0xE6 => return .{ .and_a_imm8 = .{ .imm8 = bus.read_u8() } },
 
             0xE9 => return .jp_hl,
-            0xEA => return .{ .ld_imm16_a = .{ .imm16 = r.read_u16() } },
+            0xEA => return .{ .ld_imm16_a = .{ .imm16 = bus.read_u16() } },
 
             0xEF => return .{ .rst_tgt3 = .{ .target_addr = 0x28 } },
+
             // --- 0xF0 to 0xFF ---
-            0xF0 => return .{ .ldh_a_imm8 = .{ .imm8 = r.read_u8() } },
+            0xF0 => return .{ .ldh_a_imm8 = .{ .imm8 = bus.read_u8() } },
             0xF1 => return .{ .pop_r16stk = .{ .r16stk = .af } },
 
             0xF3 => return .di,
             // OxF4 is an invalid op code
             0xF5 => return .{ .push_r16stk = .{ .r16stk = .af } },
+            0xF6 => return .{ .or_a_imm8 = .{ .imm8 = bus.read_u8() } },
 
-            0xFA => return .{ .ld_a_imm16 = .{ .imm16 = r.read_u16() } },
+            0xFA => return .{ .ld_a_imm16 = .{ .imm16 = bus.read_u16() } },
             0xFB => return .ei,
             // OxFC is an invalid op code
             // OxFD is an invalid op code
-            0xFE => return .{ .cp_a_imm8 = .{ .imm8 = r.read_u8() } },
+            0xFE => return .{ .cp_a_imm8 = .{ .imm8 = bus.read_u8() } },
             0xFF => return .{ .rst_tgt3 = .{ .target_addr = 0x38 } },
 
-            0xF4, 0xFC, 0xFD => |code| {
-                std.debug.print("Invalid opcode: 0x{x:0>2}\n", .{code});
-                return .invalid;
+            0xF4, 0xFC, 0xFD => {
+                @panic("Invalid opcode");
             },
             else => |code| {
-                std.debug.print("Unhandled opcode 0x{x:0>2}\n", .{code});
-                return .invalid;
+                std.debug.panic("Unhandled opcode 0x{x:0>2}\n", .{code});
             },
         }
     }
 
-    pub fn prefix_from_mem(r: *Reader) Instruction {
-        switch (r.read_u8()) {
+    pub fn prefix_from_bus(bus: *Bus) Instruction {
+        switch (bus.read_u8()) {
+            // --- 0x10 to 0x1F ---
+
+            0x11 => return .{ .rl_r8 = .{ .r8 = .c } },
+
+            // --- 0x20 to 0x2F ---
+            0x27 => return .{ .sla_r8 = .{ .r8 = .a } },
 
             // --- 0x30 to 0x3F ---
             0x37 => return .{ .swap_r8 = .{ .r8 = .a } },
 
+            // --- 0x70 to 0x7F ---
+
+            0x78 => return .{ .bit_b3_r8 = .{ .bit_index = 7, .r8 = .b } },
+            0x79 => return .{ .bit_b3_r8 = .{ .bit_index = 7, .r8 = .c } },
+            0x7A => return .{ .bit_b3_r8 = .{ .bit_index = 7, .r8 = .d } },
+            0x7B => return .{ .bit_b3_r8 = .{ .bit_index = 7, .r8 = .e } },
+            0x7C => return .{ .bit_b3_r8 = .{ .bit_index = 7, .r8 = .h } },
+            0x7D => return .{ .bit_b3_r8 = .{ .bit_index = 7, .r8 = .l } },
+            0x7E => return .{ .bit_b3_r8 = .{ .bit_index = 7, .r8 = .hl } },
+            0x7F => return .{ .bit_b3_r8 = .{ .bit_index = 7, .r8 = .a } },
             // --- 0x80 to 0x8F ---
+            0x80 => return .{ .res_b3_r8 = .{ .bit_index = 0, .r8 = .b } },
+            0x81 => return .{ .res_b3_r8 = .{ .bit_index = 0, .r8 = .c } },
+            0x82 => return .{ .res_b3_r8 = .{ .bit_index = 0, .r8 = .d } },
+            0x83 => return .{ .res_b3_r8 = .{ .bit_index = 0, .r8 = .e } },
+            0x84 => return .{ .res_b3_r8 = .{ .bit_index = 0, .r8 = .h } },
+            0x85 => return .{ .res_b3_r8 = .{ .bit_index = 0, .r8 = .l } },
+            0x86 => return .{ .res_b3_r8 = .{ .bit_index = 0, .r8 = .hl } },
             0x87 => return .{ .res_b3_r8 = .{ .bit_index = 0, .r8 = .a } },
 
             else => |code| {
-                std.debug.print("Unhandled prefixed opcode 0x{x:0>2}\n", .{code});
-                return .invalid;
+                std.debug.panic("Unhandled prefixed opcode 0x{x:0>2}\n", .{code});
             },
         }
     }
