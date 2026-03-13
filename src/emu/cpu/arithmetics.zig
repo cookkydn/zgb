@@ -23,6 +23,11 @@ pub fn u16_add_carry(a: u16, b: u16) bool {
     return @as(u32, a) + @as(u32, b) > 0xFFFF;
 }
 
+/// Use 1 for a writable value and 0 for a unwritable value in the mask
+pub fn masked_write(original_value: u8, mask: u8, new_value: u8) u8 {
+    return (original_value & ~mask) | (new_value & mask);
+}
+
 test "offset_by" {
     const expect = @import("std").testing.expectEqual;
     try expect(offset_by(0, 1), 1);

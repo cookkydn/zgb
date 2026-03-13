@@ -34,14 +34,16 @@ pub fn main() !void {
             }
         }
         try reg_view.render_view(&reg_v, &cpu);
-        var instr = emu.Instruction.from_bus(&cpu.bus);
-        try instr_view.render_view(&instr_v, instr);
+        try instr_view.render_view(&instr_v);
         try canvas.draw(&cpu.bus.ppu.frame_buffer, &frame_rect);
-        cpu.execute_instruction(instr);
         app.window.present();
-        for (0..50) |_| {
-            instr = emu.Instruction.from_bus(&cpu.bus);
-            cpu.execute_instruction(instr);
+        for (0..70224) |_| {
+            const instr = emu.Instruction.from_bus(&cpu.bus);
+            const cycles_taken = cpu.execute_instruction(instr);
+            instr_view.update_list(&instr_v, instr);
+            cpu.bus.ppu.tick(cycles_taken);
+            cpu.bus.timer.tick(cycles_taken);
+            cpu.interrupts.handle_interrupts();
         }
     }
     // var fps_counter = try ui.UiContext.init(.{

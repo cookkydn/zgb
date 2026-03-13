@@ -6,12 +6,14 @@ const Bus = @import("../memory/bus.zig").Bus;
 const Registers = @import("registers.zig").Registers;
 const Instruction = @import("./instructions.zig").Instruction;
 const CpuState = @import("state.zig").CpuState;
+const Interrupts = @import("interrupts.zig").Interrupts;
 
 pub const CPU = struct {
     model: hardware.GbModel,
     bus: Bus,
-    registers: Registers,
-    state: CpuState,
+    registers: Registers = Registers.init(),
+    state: CpuState = CpuState.init(),
+    interrupts: Interrupts = Interrupts.init(),
 
     pub fn init(model: hardware.GbModel) CPU {
         var bus = Bus.init();
@@ -22,8 +24,6 @@ pub const CPU = struct {
         return .{
             .model = model,
             .bus = bus,
-            .registers = Registers.init(),
-            .state = CpuState.init(),
         };
     }
 
@@ -31,12 +31,12 @@ pub const CPU = struct {
         self.bus.deinit();
     }
 
-    pub fn execute_instruction(self: *CPU, instruction: Instruction) void {
+    pub fn execute_instruction(self: *CPU, instruction: Instruction) u16 {
         const reg = &self.*.registers;
         const mem = &self.bus;
-        // self.clock.tick_emu(1);
+        const cycles = 4;
         switch (instruction) {
-            .nop, .breakpoint => return,
+            .nop, .breakpoint => return cycles,
             .ld_r16_imm16 => |arg| {
                 reg.set_r16(.{ .R16 = arg.r16 }, arg.imm16);
                 // self.clock.tick_emu(2);
@@ -346,7 +346,7 @@ pub const CPU = struct {
                 if (cc) {
                     reg.pc = arg.imm16;
                     // self.clock.tick_emu(3);
-                    return;
+                    return cycles;
                 }
                 // self.clock.tick_emu(2);
             },
@@ -370,7 +370,7 @@ pub const CPU = struct {
                     mem.push(reg.pc);
                     reg.pc = arg.imm16;
                     // self.clock.tick_emu(5);
-                    return;
+                    return cycles;
                 }
                 // self.clock.tick_emu(2);
             },
@@ -498,5 +498,6 @@ pub const CPU = struct {
                 unreachable;
             },
         }
+        return cycles;
     }
 };

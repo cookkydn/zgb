@@ -157,10 +157,6 @@ pub const Memory = struct {
         self.get_cpu().clock.tick_emu(160);
     }
 
-    fn write_mask(self: *Memory, addr: u16, value: u8, mask: u8) void {
-        self.data[addr] = (self.data[addr] & ~mask) | (value & mask);
-    }
-
     pub fn print_mem(self: *Memory, start: u16, end: u16) void {
         if (start == end) {
             std.debug.print("0x{x:0>2} (0b{b:0>8})\n", .{ self.data[start], self.data[start] });

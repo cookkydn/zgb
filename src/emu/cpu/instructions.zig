@@ -241,6 +241,7 @@ pub const Instruction = union(enum) {
             0x12 => return .{ .ld_r16mem_a = .{ .r16mem = .de } },
             0x13 => return .{ .inc_r16 = .{ .r16 = .de } },
 
+            0x15 => return .{ .dec_r8 = .{ .r8 = .d } },
             0x16 => return .{ .ld_r8_imm8 = .{ .r8 = .d, .imm8 = bus.read_u8() } },
             0x17 => return .rla,
             0x18 => return .{ .jr_imm8 = .{ .offset = bus.read_i8() } },
@@ -248,13 +249,14 @@ pub const Instruction = union(enum) {
             0x1A => return .{ .ld_a_r16mem = .{ .r16mem = .de } },
 
             0x1C => return .{ .inc_r8 = .{ .r8 = .e } },
-
+            0x1D => return .{ .dec_r8 = .{ .r8 = .e } },
             0x1E => return .{ .ld_r8_imm8 = .{ .r8 = .e, .imm8 = bus.read_u8() } },
             // --- 0x20 to 0x2F ---
             0x20 => return .{ .jr_cond_imm8 = .{ .cond = .nz, .offset = bus.read_i8() } },
             0x21 => return .{ .ld_r16_imm16 = .{ .r16 = .hl, .imm16 = bus.read_u16() } },
             0x22 => return .{ .ld_r16mem_a = .{ .r16mem = .hli } },
             0x23 => return .{ .inc_r16 = .{ .r16 = .hl } },
+            0x24 => return .{ .inc_r8 = .{ .r8 = .h } },
 
             0x27 => return .daa,
             0x28 => return .{ .jr_cond_imm8 = .{ .cond = .z, .offset = bus.read_i8() } },
