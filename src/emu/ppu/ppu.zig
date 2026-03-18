@@ -6,7 +6,6 @@ const alu = @import("../cpu/arithmetics.zig");
 const GbModel = @import("../hardware.zig").GbModel;
 const CPU = @import("../cpu/cpu.zig").CPU;
 const Bus = @import("../memory/bus.zig").Bus;
-const Tile = @import("tile.zig").Tile;
 
 const SCREEN_HEIGHT = constants.SCREEN_HEIGHT;
 const SCREEN_WIDTH = constants.SCREEN_WIDTH;
@@ -105,8 +104,8 @@ pub const PPU = struct {
             const tile_index = self.getBGTileMapArea() + @as(u16, self.ly / 8) * 32 + @as(u16, @truncate(x / 8));
             const tile_number = self.vram[tile_index - 0x8000];
             const pixel_data = self.getPixelData(tile_number, @as(u16, @truncate(x % 8)), @as(u16, self.ly % 8));
-
-            self.putPixel(x, self.ly, pixel_data);
+            const pixel_color = self.getColorByPalette(pixel_data);
+            self.putPixel(x, self.ly, pixel_color);
         }
     }
 
@@ -156,6 +155,15 @@ pub const PPU = struct {
 
     inline fn getAddressingMode(self: *PPU) AddressingMode {
         return if (self.lcdc & 16 > 0) .UNSIGNED else .SIGNED;
+    }
+
+    inline fn getColorByPalette(self: *PPU, color_id: u2) u2 {
+        return switch (color_id) {
+            0 => @truncate((self.bg_palette_data & 0x03)),
+            1 => @truncate((self.bg_palette_data & 0x0C) >> 2),
+            2 => @truncate((self.bg_palette_data & 0x30) >> 4),
+            3 => @truncate((self.bg_palette_data & 0xC0) >> 6),
+        };
     }
 
     pub const Mode = enum(u2) {

@@ -8,6 +8,7 @@ pub const Canvas = struct {
     texture: *sdl.Texture,
     width: u32,
     height: u32,
+    frame: sdl.Rect = .{ .x = 0, .y = 0, .h = 100, .w = 100 },
 
     pub fn init(window: Window, width: u32, height: u32) !Canvas {
         const texture = try sdl.createTexture(
@@ -32,7 +33,8 @@ pub const Canvas = struct {
         self.texture.destroy();
     }
 
-    pub fn draw(self: *Canvas, pixel_buffer: []const u32, dest_rect: ?*sdl.Rect) !void {
+    pub fn draw(self: *Canvas, pixel_buffer: []const u32) !void {
+        try self.window.drawFrameBorder(self.frame, 4);
         const pitch: c_int = @intCast(self.width * @sizeOf(u32));
         try sdl.updateTexture(
             self.texture,
@@ -44,20 +46,7 @@ pub const Canvas = struct {
             self.window.renderer,
             self.texture,
             null,
-            dest_rect,
+            &self.frame,
         );
-
-        try sdl.setRenderDrawColorRGB(self.window.renderer, 128, 128, 128);
-
-        if (dest_rect) |rect| {
-            const border_rect = sdl.Rect{
-                .x = rect.x - 2,
-                .y = rect.y - 2,
-                .w = rect.w + 4,
-                .h = rect.h + 4,
-            };
-
-            try self.window.renderer.drawRect(border_rect);
-        }
     }
 };
