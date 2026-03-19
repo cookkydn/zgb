@@ -34,37 +34,37 @@ pub const CPU = struct {
     pub fn execute_instruction(self: *CPU, instruction: Instruction) u16 {
         const reg = &self.*.registers;
         const mem = &self.bus;
-        const cycles = 4;
+        var cycles: u16 = 4;
         switch (instruction) {
             .nop, .breakpoint => return cycles,
             .ld_r16_imm16 => |arg| {
                 reg.set_r16(.{ .R16 = arg.r16 }, arg.imm16);
-                // self.clock.tick_emu(2);
+                cycles += 8;
             },
             .ld_r16mem_a => |arg| {
                 const r16mem = reg.load_r16(.{ .R16Mem = arg.r16mem });
                 mem.write_at(r16mem, reg.a);
-                // self.clock.tick_emu(1);
+                cycles += 4;
             },
             .ld_a_r16mem => |arg| {
                 const r16mem = reg.load_r16(.{ .R16Mem = arg.r16mem });
                 reg.a = mem.read_at(r16mem);
-                // self.clock.tick_emu(1);
+                cycles += 4;
             },
             .ld_imm16_sp => |arg| {
                 mem.write_at(arg.imm16, @truncate(reg.sp & 0xFF));
                 mem.write_at(arg.imm16 + 1, @truncate(reg.sp >> 8));
-                // self.clock.tick_emu(4);
+                cycles += 16;
             },
             .inc_r16 => |arg| {
                 const r16 = reg.load_r16(.{ .R16 = arg.r16 });
                 reg.set_r16(.{ .R16 = arg.r16 }, r16 +% 1);
-                // self.clock.tick_emu(1);
+                cycles += 4;
             },
             .dec_r16 => |arg| {
                 const r16 = reg.load_r16(.{ .R16 = arg.r16 });
                 reg.set_r16(.{ .R16 = arg.r16 }, r16 -% 1);
-                // self.clock.tick_emu(1);
+                cycles += 4;
             },
             .add_hl_r16 => |arg| {
                 const hl = reg.get_hl();
@@ -73,7 +73,7 @@ pub const CPU = struct {
                 reg.f.h = ((hl & 0x0FFF) + (r16 & 0x0FFF)) > 0x0FFF;
                 reg.f.n = false;
                 reg.set_hl(hl +% r16);
-                // self.clock.tick_emu(1);
+                cycles += 4;
             },
             .inc_r8 => |arg| {
                 const r8 = reg.load_r8(arg.r8);
@@ -93,7 +93,7 @@ pub const CPU = struct {
             },
             .ld_r8_imm8 => |arg| {
                 reg.set_r8(arg.r8, arg.imm8);
-                // self.clock.tick_emu(1);
+                cycles += 4;
             },
             .rlca => {
                 reg.f.c = reg.a & 0x80 == 0x80;
@@ -164,15 +164,15 @@ pub const CPU = struct {
             },
             .jr_imm8 => |arg| {
                 reg.pc +%= @as(u16, @bitCast(@as(i16, arg.offset)));
-                // self.clock.tick_emu(2);
+                cycles += 8;
             },
             .jr_cond_imm8 => |arg| {
                 const cc = reg.f.check_cc(arg.cond);
                 if (cc) {
                     reg.pc +%= @as(u16, @bitCast(@as(i16, arg.offset)));
-                    // self.clock.tick_emu(1);
+                    cycles += 8;
                 }
-                // self.clock.tick_emu(1);
+                cycles += 4;
             },
             .stop => {
                 //TODO follow chart
@@ -193,6 +193,9 @@ pub const CPU = struct {
                 reg.a +%= r8;
                 reg.f.z = reg.a == 0;
                 reg.f.n = false;
+                if (arg.r8 == .hl) {
+                    cycles += 4;
+                }
             },
             .adc_a_r8 => |arg| {
                 const r8 = reg.load_r8(arg.r8);
@@ -206,6 +209,9 @@ pub const CPU = struct {
                 reg.f.n = false;
                 reg.f.h = ((old_a & 0xF) + (r8 & 0xF) + carry) > 0xF;
                 reg.f.c = full_sum > 0xFF;
+                if (arg.r8 == .hl) {
+                    cycles += 4;
+                }
             },
             .sub_a_r8 => |arg| {
                 const r8 = reg.load_r8(arg.r8);
@@ -214,6 +220,9 @@ pub const CPU = struct {
                 reg.f.h = alu.u8_half_sub_carry(reg.a, r8);
                 reg.a -%= r8;
                 reg.f.z = reg.a == 0;
+                if (arg.r8 == .hl) {
+                    cycles += 4;
+                }
             },
             .sbc_a_r8 => |arg| {
                 const r8 = reg.load_r8(arg.r8);
@@ -224,6 +233,9 @@ pub const CPU = struct {
                 reg.f.c = alu.u8_sub_carry(reg.a, r8) or alu.u8_sub_carry(sub, carry);
                 reg.f.h = alu.u8_half_sub_carry(reg.a, r8) or alu.u8_half_sub_carry(sub, carry);
                 reg.a -%= r8 +% carry;
+                if (arg.r8 == .hl) {
+                    cycles += 4;
+                }
             },
             .and_a_r8 => |arg| {
                 const r8 = reg.load_r8(arg.r8);
@@ -232,6 +244,9 @@ pub const CPU = struct {
                 reg.f.c = false;
                 reg.f.h = true;
                 reg.f.n = false;
+                if (arg.r8 == .hl) {
+                    cycles += 4;
+                }
             },
             .xor_a_r8 => |arg| {
                 const r8 = reg.load_r8(arg.r8);
@@ -240,6 +255,9 @@ pub const CPU = struct {
                 reg.f.c = false;
                 reg.f.h = false;
                 reg.f.n = false;
+                if (arg.r8 == .hl) {
+                    cycles += 4;
+                }
             },
             .or_a_r8 => |arg| {
                 const r8 = reg.load_r8(arg.r8);
@@ -248,6 +266,9 @@ pub const CPU = struct {
                 reg.f.c = false;
                 reg.f.h = false;
                 reg.f.n = false;
+                if (arg.r8 == .hl) {
+                    cycles += 4;
+                }
             },
             .cp_a_r8 => |arg| {
                 const r8 = reg.load_r8(arg.r8);
@@ -255,6 +276,9 @@ pub const CPU = struct {
                 reg.f.n = true;
                 reg.f.h = (((reg.a & 0xF) -% (r8 & 0xF)) & 0x10) == 0x10;
                 reg.f.c = r8 > reg.a;
+                if (arg.r8 == .hl) {
+                    cycles += 4;
+                }
             },
             .add_a_imm8 => |arg| {
                 reg.f.n = false;
@@ -262,7 +286,7 @@ pub const CPU = struct {
                 reg.f.c = alu.u8_add_carry(reg.a, arg.imm8);
                 reg.f.z = reg.a == 0;
                 reg.a = reg.a +% arg.imm8;
-                // self.clock.tick_emu(1);
+                cycles += 4;
             },
             .adc_a_imm8 => |arg| {
                 const carry: u8 = if (reg.f.c) 1 else 0;
@@ -275,7 +299,7 @@ pub const CPU = struct {
                 reg.f.n = false;
                 reg.f.h = ((old_a & 0xF) + (arg.imm8 & 0xF) + carry) > 0xF;
                 reg.f.c = full_sum > 0xFF;
-                // self.clock.tick_emu(1);
+                cycles += 4;
             },
             .sub_a_imm8 => |arg| {
                 reg.f.n = true;
@@ -283,7 +307,7 @@ pub const CPU = struct {
                 reg.f.h = alu.u8_half_sub_carry(reg.a, arg.imm8);
                 reg.a -%= arg.imm8;
                 reg.f.z = reg.a == 0;
-                // self.clock.tick_emu(1);
+                cycles += 4;
             },
             .sbc_a_imm8 => |arg| {
                 const carry: u8 = if (reg.f.c) 1 else 0;
@@ -293,6 +317,7 @@ pub const CPU = struct {
                 reg.f.c = alu.u8_sub_carry(reg.a, arg.imm8) or alu.u8_sub_carry(sub, carry);
                 reg.f.h = alu.u8_half_sub_carry(reg.a, arg.imm8) or alu.u8_half_sub_carry(sub, carry);
                 reg.a -%= arg.imm8 +% carry;
+                cycles += 4;
             },
             .and_a_imm8 => |arg| {
                 reg.a &= arg.imm8;
@@ -300,6 +325,7 @@ pub const CPU = struct {
                 reg.f.c = false;
                 reg.f.h = true;
                 reg.f.n = false;
+                cycles += 4;
             },
             .xor_a_imm8 => |arg| {
                 reg.a ^= arg.imm8;
@@ -307,7 +333,7 @@ pub const CPU = struct {
                 reg.f.c = false;
                 reg.f.h = false;
                 reg.f.n = false;
-                // self.clock.tick_emu(1);
+                cycles += 4;
             },
             .or_a_imm8 => |arg| {
                 reg.a |= arg.imm8;
@@ -315,7 +341,7 @@ pub const CPU = struct {
                 reg.f.c = false;
                 reg.f.h = false;
                 reg.f.n = false;
-                // self.clock.tick_emu(1);
+                cycles += 4;
             },
             .cp_a_imm8 => |arg| {
                 const result: struct { u8, u1 } = @subWithOverflow(reg.a, arg.imm8);
@@ -323,64 +349,72 @@ pub const CPU = struct {
                 reg.f.n = true;
                 reg.f.h = (reg.a & 0x0F) < (arg.imm8 & 0x0F);
                 reg.f.c = arg.imm8 > reg.a;
-                // self.clock.tick_emu(1);
+                cycles += 4;
             },
             .ret_cond => |arg| {
                 const cc = reg.f.check_cc(arg.cond);
                 if (cc) {
                     const pc = mem.pop();
                     reg.pc = pc;
+                    cycles += 16;
                 }
+                cycles += 4;
             },
             .ret => {
                 const pc = mem.pop();
                 reg.pc = pc;
+                cycles += 12;
             },
             .reti => {
                 self.state.ime = .ENABLED;
                 const pc = mem.pop();
                 reg.pc = pc;
+                cycles += 12;
             },
             .jp_cond_imm16 => |arg| {
                 const cc = reg.f.check_cc(arg.cond);
                 if (cc) {
                     reg.pc = arg.imm16;
-                    // self.clock.tick_emu(3);
+                    cycles += 12;
                     return cycles;
                 }
-                // self.clock.tick_emu(2);
+                cycles += 8;
             },
             .jp_imm16 => |arg| {
                 //std.debug.print("Jumping to 0x{x:0>4}\n", .{arg.imm16});
                 reg.pc = arg.imm16;
+                cycles += 12;
             },
             .jp_hl => {
                 reg.pc = reg.get_hl();
             },
             .ldh_imm8_a => |arg| {
                 mem.write_at(0xFF00 | @as(u16, arg.imm8), reg.a);
+                cycles += 4;
             },
             .ld_imm16_a => |arg| {
                 mem.write_at(arg.imm16, reg.a);
-                // self.clock.tick_emu(3);
+                cycles += 8;
             },
             .call_cond_imm16 => |arg| {
                 const cc = reg.f.check_cc(arg.cond);
                 if (cc) {
                     mem.push(reg.pc);
                     reg.pc = arg.imm16;
-                    // self.clock.tick_emu(5);
+                    cycles += 20;
                     return cycles;
                 }
-                // self.clock.tick_emu(2);
+                cycles += 8;
             },
             .call_imm16 => |arg| {
                 mem.push(reg.pc);
                 reg.pc = arg.imm16;
+                cycles += 20;
             },
             .rst_tgt3 => |arg| {
                 mem.push(reg.pc);
                 reg.pc = arg.target_addr;
+                cycles += 12;
             },
             .pop_r16stk => |arg| {
                 const val = mem.pop();
@@ -389,15 +423,22 @@ pub const CPU = struct {
             .push_r16stk => |arg| {
                 const r16 = self.registers.load_r16(.{ .R16Stk = arg.r16stk });
                 mem.push(r16);
+                cycles += 8;
+                if (arg.r16stk == .af) {
+                    cycles += 4;
+                }
             },
             .ldh_c_a => {
                 mem.write_at(0xFF00 | @as(u16, reg.c), reg.a);
+                cycles += 4;
             },
             .ldh_a_imm8 => |arg| {
                 reg.a = mem.read_at(0xFF00 | @as(u16, arg.imm8));
+                cycles += 8;
             },
             .ld_a_imm16 => |arg| {
                 reg.a = mem.read_at(arg.imm16);
+                cycles += 12;
             },
             .add_sp_imm8 => |arg| {
                 reg.sp = alu.offset_by(reg.sp, arg.offset);
@@ -405,7 +446,7 @@ pub const CPU = struct {
                 reg.f.n = false;
                 reg.f.c = alu.u8_add_carry(@truncate(reg.sp), @bitCast(arg.offset));
                 reg.f.h = alu.u8_half_add_carry(@truncate(reg.sp), @bitCast(arg.offset));
-                // self.clock.tick_emu(3);
+                cycles += 12;
             },
             .ld_hl_sp_plus_imm8 => |arg| {
                 reg.set_hl(alu.offset_by(reg.sp, arg.offset));
@@ -413,11 +454,11 @@ pub const CPU = struct {
                 reg.f.n = false;
                 reg.f.c = alu.u8_add_carry(@truncate(reg.sp), @bitCast(arg.offset));
                 reg.f.h = alu.u8_half_add_carry(@truncate(reg.sp), @bitCast(arg.offset));
-                // self.clock.tick_emu(2);
+                cycles += 8;
             },
             .ld_sp_hl => {
                 reg.sp = reg.get_hl();
-                // self.clock.tick_emu(1);
+                cycles += 4;
             },
             .di => {
                 self.state.ime = .DISABLED;
@@ -435,6 +476,10 @@ pub const CPU = struct {
                 reg.f.h = false;
                 reg.f.n = false;
                 reg.set_r8(arg.r8, r8);
+                cycles += 4;
+                if (arg.r8 == .hl) {
+                    cycles += 8;
+                }
             },
             .rr_r8 => |arg| {
                 const r8 = reg.load_r8(arg.r8);
@@ -444,7 +489,10 @@ pub const CPU = struct {
                 reg.f.z = res == 0;
                 reg.f.h = false;
                 reg.f.n = false;
-                // self.clock.tick_emu(1);
+                cycles += 4;
+                if (arg.r8 == .hl) {
+                    cycles += 8;
+                }
             },
             .sla_r8 => |arg| {
                 const r8 = reg.load_r8(arg.r8);
@@ -454,7 +502,10 @@ pub const CPU = struct {
                 reg.f.n = false;
                 reg.f.h = false;
                 reg.f.c = result[1] == 1;
-                // self.clock.tick_emu(1);
+                cycles += 4;
+                if (arg.r8 == .hl) {
+                    cycles += 8;
+                }
             },
             .swap_r8 => |arg| {
                 const r8 = reg.load_r8(arg.r8);
@@ -464,7 +515,10 @@ pub const CPU = struct {
                 reg.f.n = false;
                 reg.f.c = false;
                 reg.f.h = false;
-                // self.clock.tick_emu(1);
+                cycles += 4;
+                if (arg.r8 == .hl) {
+                    cycles += 8;
+                }
             },
             .srl_r8 => |arg| {
                 const r8 = reg.load_r8(arg.r8);
@@ -474,21 +528,36 @@ pub const CPU = struct {
                 reg.f.z = res == 0;
                 reg.f.h = false;
                 reg.f.n = false;
-                // self.clock.tick_emu(1);
+                cycles += 4;
+                if (arg.r8 == .hl) {
+                    cycles += 8;
+                }
             },
             .bit_b3_r8 => |arg| {
                 const r8 = reg.load_r8(arg.r8);
                 reg.f.z = (r8 >> arg.bit_index) & 1 == 0;
                 reg.f.n = false;
                 reg.f.h = true;
+                cycles += 4;
+                if (arg.r8 == .hl) {
+                    cycles += 4;
+                }
             },
             .res_b3_r8 => |arg| {
                 const r8 = reg.load_r8(arg.r8);
                 reg.set_r8(arg.r8, r8 & ~(@as(u8, 1) << arg.bit_index));
+                cycles += 4;
+                if (arg.r8 == .hl) {
+                    cycles += 8;
+                }
             },
             .set_b3_r8 => |arg| {
                 const r8 = reg.load_r8(arg.r8);
                 reg.set_r8(arg.r8, r8 | (@as(u8, 1) << arg.bit_index));
+                cycles += 4;
+                if (arg.r8 == .hl) {
+                    cycles += 8;
+                }
             },
             .invalid => {
                 unreachable;
