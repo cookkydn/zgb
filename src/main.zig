@@ -9,6 +9,9 @@ const sapp = sokol.app;
 const sglue = sokol.glue;
 const simgui = sokol.imgui;
 const sgimgui = sokol.sgimgui;
+const std = @import("std");
+
+const Decompiler = @import("decompiler.zig").Decompiler;
 
 const CPU_FREQ = 4194304.0;
 
@@ -21,8 +24,10 @@ const state = struct {
     var sampler: sg.Sampler = .{};
     var view: sg.View = .{};
     var cpu: ?emu.CPU = null;
-    var pause: bool = false;
+    var pause: bool = true;
+    var decompiler: Decompiler = undefined;
     var cycle_acc: f64 = 0;
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
 };
 
 export fn init() void {
@@ -63,6 +68,7 @@ export fn init() void {
         .wrap_u = .CLAMP_TO_EDGE,
         .wrap_v = .CLAMP_TO_EDGE,
     });
+    state.decompiler = Decompiler.init(state.arena.allocator(), &state.cpu.?.bus);
     state.view = sg.makeView(.{ .texture = .{ .image = state.image } });
 }
 
@@ -103,16 +109,18 @@ export fn frame() void {
     const ips = @as(f64, @floatFromInt(instr_count)) / sapp.frameDuration();
 
     //=== UI CODE STARTS HERE
-    ig.igSetNextWindowPos(.{ .x = 10, .y = 10 }, ig.ImGuiCond_Once);
-    ig.igSetNextWindowSize(.{ .x = 200, .y = 130 }, ig.ImGuiCond_Once);
-    if (ig.igBegin("Debug info", &state.show_debug, ig.ImGuiWindowFlags_None)) {
-        ig.igText("Dear ImGui Version: %s", ig.IMGUI_VERSION);
-        ig.igText("Sokol Backend: %s", backendName);
-        ig.igText("FPS: %.f", 1 / sapp.frameDuration());
-        ig.igText("Instr/f: %i", instr_count);
-        ig.igText("Instr/s: %.f", ips);
+    if (state.show_debug) {
+        ig.igSetNextWindowPos(.{ .x = 10, .y = 10 }, ig.ImGuiCond_Once);
+        ig.igSetNextWindowSize(.{ .x = 200, .y = 130 }, ig.ImGuiCond_Once);
+        if (ig.igBegin("Debug info", &state.show_debug, ig.ImGuiWindowFlags_None)) {
+            ig.igText("Dear ImGui Version: %s", ig.IMGUI_VERSION);
+            ig.igText("Sokol Backend: %s", backendName);
+            ig.igText("FPS: %.f", 1 / sapp.frameDuration());
+            ig.igText("Instr/f: %i", instr_count);
+            ig.igText("Instr/s: %.f", ips);
+        }
+        ig.igEnd();
     }
-    ig.igEnd();
 
     ig.igSetNextWindowPos(.{ .x = 10, .y = 150 }, ig.ImGuiCond_Once);
     ig.igSetNextWindowSize(.{ .x = 150, .y = 150 }, ig.ImGuiCond_Once);
@@ -133,6 +141,8 @@ export fn frame() void {
     }
     ig.igEnd();
 
+    state.decompiler.frame(state.cpu.?.registers.pc);
+
     ig.igSetNextWindowPos(.{ .x = 10, .y = 310 }, ig.ImGuiCond_Once);
     ig.igSetNextWindowSize(.{ .x = 200, .y = 100 }, ig.ImGuiCond_Once);
     if (ig.igBegin("Controls", &state.show_controls, ig.ImGuiWindowFlags_None)) {
@@ -146,6 +156,14 @@ export fn frame() void {
             state.pause = !state.pause;
         }
         if (state.pause) {
+            if (state.cpu.?.bus.is_bios) {
+                ig.igSameLine();
+                if (ig.igButton("Boot")) {
+                    while (state.cpu.?.bus.is_bios) {
+                        _ = step_emu();
+                    }
+                }
+            }
             if (ig.igButton("Step")) _ = step_emu();
             ig.igSameLine();
             if (ig.igButton("Step x10")) for (0..10) |_| {
@@ -155,7 +173,17 @@ export fn frame() void {
             if (ig.igButton("Step x100")) for (0..100) |_| {
                 _ = step_emu();
             };
+            if (ig.igButton("Step x1000")) for (0..1_000) |_| {
+                _ = step_emu();
+            };
             ig.igSameLine();
+            if (ig.igButton("Step x10 000")) for (0..10_000) |_| {
+                _ = step_emu();
+            };
+            ig.igSameLine();
+            if (ig.igButton("Step x100 000")) for (0..100_000) |_| {
+                _ = step_emu();
+            };
         }
     }
     ig.igEnd();
@@ -203,6 +231,7 @@ export fn frame() void {
 }
 
 export fn cleanup() void {
+    state.arena.deinit();
     simgui.shutdown();
     sgimgui.shutdown();
     sg.shutdown();
