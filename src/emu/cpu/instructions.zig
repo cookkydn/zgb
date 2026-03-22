@@ -258,6 +258,7 @@ pub const Instruction = union(enum) {
             0x23 => return .{ .inc_r16 = .{ .r16 = .hl } },
             0x24 => return .{ .inc_r8 = .{ .r8 = .h } },
 
+            0x26 => return .{ .ld_r8_imm8 = .{ .r8 = .h, .imm8 = bus.read_u8() } },
             0x27 => return .daa,
             0x28 => return .{ .jr_cond_imm8 = .{ .cond = .z, .offset = bus.read_i8() } },
             0x29 => return .{ .add_hl_r16 = .{ .r16 = .hl } },
@@ -354,6 +355,8 @@ pub const Instruction = union(enum) {
             0x80 => return .{ .add_a_r8 = .{ .r8 = .b } },
             0x81 => return .{ .add_a_r8 = .{ .r8 = .c } },
 
+            0x83 => return .{ .add_a_r8 = .{ .r8 = .e } },
+
             0x85 => return .{ .add_a_r8 = .{ .r8 = .l } },
             0x86 => return .{ .add_a_r8 = .{ .r8 = .hl } },
             0x87 => return .{ .add_a_r8 = .{ .r8 = .a } },
@@ -362,6 +365,7 @@ pub const Instruction = union(enum) {
             0x90 => return .{ .sub_a_r8 = .{ .r8 = .b } },
             0x91 => return .{ .sub_a_r8 = .{ .r8 = .c } },
 
+            0x9F => return .{ .sbc_a_r8 = .{ .r8 = .a } },
             // --- 0xA0 to 0xAF ---
             0xA0 => return .{ .and_a_r8 = .{ .r8 = .b } },
             0xA1 => return .{ .and_a_r8 = .{ .r8 = .c } },
@@ -399,7 +403,8 @@ pub const Instruction = union(enum) {
             0xCB => return Instruction.prefix_from_bus(bus),
             0xCC => return .{ .call_cond_imm16 = .{ .cond = .z, .imm16 = bus.read_u16() } },
             0xCD => return .{ .call_imm16 = .{ .imm16 = bus.read_u16() } },
-
+            0xCE => return .{ .adc_a_imm8 = .{ .imm8 = bus.read_u8() } },
+            0xCF => return .{ .rst_tgt3 = .{ .target_addr = 0x08 } },
             // --- 0xD0 to 0xDF ---
             0xD0 => return .{ .ret_cond = .{ .cond = .nc } },
             0xD1 => return .{ .pop_r16stk = .{ .r16stk = .de } },
@@ -420,6 +425,7 @@ pub const Instruction = union(enum) {
             0xE9 => return .jp_hl,
             0xEA => return .{ .ld_imm16_a = .{ .imm16 = bus.read_u16() } },
 
+            0xEE => return .{ .xor_a_imm8 = .{ .imm8 = bus.read_u8() } },
             0xEF => return .{ .rst_tgt3 = .{ .target_addr = 0x28 } },
 
             // --- 0xF0 to 0xFF ---
@@ -439,10 +445,11 @@ pub const Instruction = union(enum) {
             0xFF => return .{ .rst_tgt3 = .{ .target_addr = 0x38 } },
 
             0xF4, 0xFC, 0xFD => {
-                @panic("Invalid opcode");
+                return .invalid;
             },
-            else => |code| {
-                std.debug.panic("Unhandled opcode 0x{x:0>2}\n", .{code});
+            else => |_| {
+                return .invalid;
+                // std.debug.panic("Unhandled opcode 0x{x:0>2}\n", .{code});
             },
         }
     }
@@ -479,12 +486,24 @@ pub const Instruction = union(enum) {
             0x86 => return .{ .res_b3_r8 = .{ .bit_index = 0, .r8 = .hl } },
             0x87 => return .{ .res_b3_r8 = .{ .bit_index = 0, .r8 = .a } },
 
-            else => |code| {
-                std.debug.panic("Unhandled prefixed opcode 0x{x:0>2}\n", .{code});
+            else => |_| {
+                return .invalid;
+                // std.debug.panic("Unhandled prefixed opcode 0x{x:0>2}\n", .{code});
             },
         }
     }
+
+    pub fn take_at(bus: *Bus, addr: u16) InstructionEntry {
+        const pc = bus.getCpu().registers.pc;
+        bus.getCpu().registers.pc = addr;
+        const instr = Instruction.from_bus(bus);
+        const size = bus.getCpu().registers.pc - addr;
+        bus.getCpu().registers.pc = pc;
+        return .{ .instruction = instr, .size = size };
+    }
 };
+
+pub const InstructionEntry = struct { instruction: Instruction, size: u16 };
 
 pub const R8 = enum {
     b,

@@ -23,7 +23,7 @@ pub const Bus = struct {
 
     is_bios: bool = true,
 
-    fn getCpu(self: *Bus) *CPU {
+    pub fn getCpu(self: *Bus) *CPU {
         return @alignCast(@fieldParentPtr("bus", self));
     }
 

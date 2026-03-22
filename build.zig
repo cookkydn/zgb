@@ -1,106 +1,55 @@
 const std = @import("std");
+const Build = std.Build;
+const OptimizeMode = std.builtin.OptimizeMode;
+const ResolvedTarget = Build.ResolvedTarget;
+const Dependency = Build.Dependency;
+const sokol = @import("sokol");
+const cimgui = @import("cimgui");
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
+    const opt_docking = b.option(bool, "docking", "Build with docking support") orelse false;
+    const cimgui_conf = cimgui.getConfig(opt_docking);
 
-    const mod = b.addModule("zgb", .{
-        .root_source_file = b.path("src/root.zig"),
+    const dep_sokol = b.dependency("sokol", .{
         .target = target,
+        .optimize = optimize,
+        .with_sokol_imgui = true,
+        .with_tracing = true,
     });
-
-    const ui_mod = b.createModule(.{
-        .root_source_file = b.path("src/ui/root.zig"),
+    const dep_cimgui = b.dependency("cimgui", .{
+        .target = target,
         .optimize = optimize,
     });
 
-    const emu_mod = b.createModule(.{
-        .root_source_file = b.path("src/emu/root.zig"),
+    dep_sokol.artifact("sokol_clib").root_module.addIncludePath(dep_cimgui.path(cimgui_conf.include_dir));
+
+    const mod_main = b.createModule(.{
+        .root_source_file = b.path("src/main.zig"),
+        .target = target,
         .optimize = optimize,
+        .imports = &.{
+            .{ .name = "sokol", .module = dep_sokol.module("sokol") },
+            .{ .name = cimgui_conf.module_name, .module = dep_cimgui.module(cimgui_conf.module_name) },
+        },
     });
+
+    const mod_options = b.addOptions();
+
+    mod_options.addOption(bool, "docking", opt_docking);
+    mod_main.addOptions("build_options", mod_options);
 
     const exe = b.addExecutable(.{
         .name = "zgb",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("src/main.zig"),
-            .target = target,
-            .optimize = optimize,
-            .imports = &.{
-                .{ .name = "zgb", .module = mod },
-            },
-        }),
+        .root_module = mod_main,
     });
-
-    exe.root_module.addImport("ui", ui_mod);
-    exe.root_module.addImport("emu", emu_mod);
-    emu_mod.addImport("ui", ui_mod);
 
     b.installArtifact(exe);
-    exe.linkLibC();
-    const zsdl = b.dependency("zsdl", .{});
 
-    exe.root_module.addImport("zsdl2", zsdl.module("zsdl2"));
-    exe.root_module.addImport("zsdl2_ttf", zsdl.module("zsdl2_ttf"));
-    exe.root_module.addImport("zsdl2_image", zsdl.module("zsdl2_image"));
-    ui_mod.addImport("zsdl2", zsdl.module("zsdl2"));
-    ui_mod.addImport("zsdl2_ttf", zsdl.module("zsdl2_ttf"));
-    linkSdlLibs(exe);
-    @import("zsdl").prebuilt_sdl2.addLibraryPathsTo(exe);
-    if (@import("zsdl").prebuilt_sdl2.install(b, target.result, .bin, .{
-        .ttf = true,
-        .image = true,
-    })) |install_sdl2_step| {
-        b.getInstallStep().dependOn(install_sdl2_step);
-    }
+    // Running the app
+    const run_exe = b.addRunArtifact(exe);
+    const run_step = b.step("run", "Run the application");
 
-    switch (exe.rootModuleTarget().os.tag) {
-        .windows => {}, // rpath is not used on Windows
-        .linux => exe.root_module.addRPathSpecial("$ORIGIN"),
-        .macos => exe.root_module.addRPathSpecial("@executable_path"),
-        else => {},
-    }
-
-    const run_step = b.step("run", "Run the app");
-    const run_cmd = b.addRunArtifact(exe);
-    run_step.dependOn(&run_cmd.step);
-    run_cmd.step.dependOn(b.getInstallStep());
-    if (b.args) |args| {
-        run_cmd.addArgs(args);
-    }
-
-    const mod_tests = b.addTest(.{
-        .root_module = mod,
-    });
-    const run_mod_tests = b.addRunArtifact(mod_tests);
-    const exe_tests = b.addTest(.{
-        .root_module = exe.root_module,
-    });
-    const run_exe_tests = b.addRunArtifact(exe_tests);
-    const test_step = b.step("test", "Run tests");
-    test_step.dependOn(&run_mod_tests.step);
-    test_step.dependOn(&run_exe_tests.step);
-}
-
-pub fn linkSdlLibs(compile_step: *std.Build.Step.Compile) void {
-    // Adjust as needed for the libraries you are using.
-    switch (compile_step.rootModuleTarget().os.tag) {
-        .windows => {
-            compile_step.linkSystemLibrary("SDL2");
-            compile_step.linkSystemLibrary("SDL2main"); // Only needed for SDL2, not ttf or image
-
-            compile_step.linkSystemLibrary("SDL2_ttf");
-            compile_step.linkSystemLibrary("SDL2_image");
-        },
-        .linux => {
-            compile_step.linkSystemLibrary("SDL2");
-            compile_step.linkSystemLibrary("SDL2_ttf");
-            compile_step.linkSystemLibrary("SDL2_image");
-        },
-        .macos => {
-            compile_step.linkFramework("SDL2");
-            compile_step.linkFramework("SDL2_ttf");
-            compile_step.linkFramework("SDL2_image");
-        },
-        else => {},
-    }
+    run_step.dependOn(&run_exe.step);
 }

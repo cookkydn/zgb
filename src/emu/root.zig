@@ -1,4 +1,5 @@
 const instr_mod = @import("cpu/instructions.zig");
+pub const arithmetics = @import("cpu/arithmetics.zig");
 
 pub const CPU = @import("cpu/cpu.zig").CPU;
 pub const Bus = @import("memory/bus.zig").Bus;
@@ -6,6 +7,7 @@ pub const Registers = @import("cpu/registers.zig").Registers;
 pub const Constants = @import("const.zig");
 pub const Cartridge = @import("memory/cartridge.zig").Cartridge;
 pub const Instruction = instr_mod.Instruction;
+pub const InstructionEntry = instr_mod.InstructionEntry;
 pub const R8 = instr_mod.R8;
 pub const R16 = instr_mod.R16;
 pub const R16Mem = instr_mod.R16Mem;
