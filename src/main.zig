@@ -28,6 +28,7 @@ const state = struct {
     var decompiler: Decompiler = undefined;
     var cycle_acc: f64 = 0;
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    var stop_on_vblank: bool = false;
 };
 
 export fn init() void {
@@ -123,7 +124,7 @@ export fn frame() void {
     }
 
     ig.igSetNextWindowPos(.{ .x = 10, .y = 150 }, ig.ImGuiCond_Once);
-    ig.igSetNextWindowSize(.{ .x = 150, .y = 150 }, ig.ImGuiCond_Once);
+    ig.igSetNextWindowSize(.{ .x = 150, .y = 170 }, ig.ImGuiCond_Once);
     if (ig.igBegin("Registers", &state.show_registers, ig.ImGuiWindowFlags_None)) {
         ig.igText("PC: 0x%04x", state.cpu.?.registers.pc);
         ig.igText("AF: 0x%04x", state.cpu.?.registers.get_af());
@@ -131,6 +132,7 @@ export fn frame() void {
         ig.igText("DE: 0x%04x", state.cpu.?.registers.get_de());
         ig.igText("HL: 0x%04x", state.cpu.?.registers.get_hl());
         ig.igText("SP: 0x%04x", state.cpu.?.registers.sp);
+        ig.igText("IME: %s", @tagName(state.cpu.?.state.ime).ptr);
         ig.igText(
             "F: z %i n %i h %i c %i",
             state.cpu.?.registers.f.z,
@@ -143,13 +145,14 @@ export fn frame() void {
 
     state.decompiler.frame(state.cpu.?.registers.pc);
 
-    ig.igSetNextWindowPos(.{ .x = 10, .y = 310 }, ig.ImGuiCond_Once);
-    ig.igSetNextWindowSize(.{ .x = 200, .y = 100 }, ig.ImGuiCond_Once);
+    ig.igSetNextWindowPos(.{ .x = 10, .y = 330 }, ig.ImGuiCond_Once);
+    ig.igSetNextWindowSize(.{ .x = 220, .y = 150 }, ig.ImGuiCond_Once);
     if (ig.igBegin("Controls", &state.show_controls, ig.ImGuiWindowFlags_None)) {
         if (ig.igButton("Restart")) {
             state.pause = true;
             state.cpu = emu.CPU.init(.DMG0);
             state.cpu.?.bus.loadCartridge("tetris.gb") catch @panic("failed to load cartridge");
+            state.decompiler.init_analysis();
         }
         ig.igSameLine();
         if (ig.igButton(if (state.pause) "Play" else "Pause")) {
@@ -180,11 +183,38 @@ export fn frame() void {
             if (ig.igButton("Step x10 000")) for (0..10_000) |_| {
                 _ = step_emu();
             };
-            ig.igSameLine();
             if (ig.igButton("Step x100 000")) for (0..100_000) |_| {
                 _ = step_emu();
             };
+            if (ig.igButton("Vblank")) {
+                state.stop_on_vblank = true;
+                state.pause = false;
+            }
         }
+    }
+    ig.igEnd();
+
+    ig.igSetNextWindowPos(.{ .x = 10, .y = 490 }, ig.ImGuiCond_Once);
+    ig.igSetNextWindowSize(.{ .x = 160, .y = 100 }, ig.ImGuiCond_Once);
+    if (ig.igBegin("Memory Reg", &state.show_registers, ig.ImGuiWindowFlags_None)) {
+        var buf: [64]u8 = undefined;
+        const s_lcdc = std.fmt.bufPrintZ(&buf, "LCDC: {b:0>8}", .{state.cpu.?.bus.ppu.lcdc}) catch "err";
+        ig.igText("%s", s_lcdc.ptr);
+        const s_ly = std.fmt.bufPrintZ(&buf, "LY:   {b:0>8} (0x{x})", .{ state.cpu.?.bus.ppu.ly, state.cpu.?.bus.ppu.ly }) catch "err";
+        ig.igText("%s", s_ly.ptr);
+        const s_ie = std.fmt.bufPrintZ(&buf, "IE:   {b:0>8}", .{state.cpu.?.interrupts.IE}) catch "err";
+        ig.igText("%s", s_ie.ptr);
+        const s_if = std.fmt.bufPrintZ(&buf, "IF:   {b:0>8}", .{state.cpu.?.interrupts.IF}) catch "err";
+        ig.igText("%s", s_if.ptr);
+    }
+    ig.igEnd();
+
+    ig.igSetNextWindowPos(.{ .x = 10, .y = 600 }, ig.ImGuiCond_Once);
+    ig.igSetNextWindowSize(.{ .x = 160, .y = 50 }, ig.ImGuiCond_Once);
+    if (ig.igBegin("Joypad", &state.show_registers, ig.ImGuiWindowFlags_None)) {
+        var buf: [64]u8 = undefined;
+        const s_lcdc = std.fmt.bufPrintZ(&buf, "Joy: {b:0>8}", .{state.cpu.?.bus.joypad.p1_joyp}) catch "err";
+        ig.igText("%s", s_lcdc.ptr);
     }
     ig.igEnd();
 
@@ -238,8 +268,9 @@ export fn cleanup() void {
 }
 
 export fn event(ev: [*c]const sapp.Event) void {
-    // forward input events to sokol-imgui
     _ = simgui.handleEvent(ev.*);
+    if (ig.igGetIO().*.WantCaptureKeyboard) return;
+    state.cpu.?.bus.joypad.handle_event(ev);
 }
 
 pub fn main() void {
@@ -249,8 +280,8 @@ pub fn main() void {
         .cleanup_cb = cleanup,
         .event_cb = event,
         .window_title = "ZGB",
-        .width = 1200,
-        .height = 600,
+        .width = 1440,
+        .height = 900,
         .icon = .{ .sokol_default = true },
         .logger = .{ .func = slog.func },
     });
@@ -261,6 +292,10 @@ fn step_emu() u16 {
     const cycles_taken = state.cpu.?.execute_instruction(instr);
     state.cpu.?.bus.ppu.tick(cycles_taken);
     state.cpu.?.bus.timer.tick(cycles_taken);
+    if (state.stop_on_vblank and state.cpu.?.registers.pc == 0x40) {
+        state.pause = true;
+        state.stop_on_vblank = false;
+    }
     state.cpu.?.interrupts.handle_interrupts();
     return cycles_taken;
 }

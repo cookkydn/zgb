@@ -6,11 +6,13 @@ const alu = @import("../cpu/arithmetics.zig");
 const GbModel = @import("../hardware.zig").GbModel;
 const CPU = @import("../cpu/cpu.zig").CPU;
 const Bus = @import("../memory/bus.zig").Bus;
+const Sprite = @import("sprite.zig").Sprite;
 
 const SCREEN_HEIGHT = constants.SCREEN_HEIGHT;
 const SCREEN_WIDTH = constants.SCREEN_WIDTH;
 
 pub const PPU = struct {
+    /// 0x8000 to 0x9FFF
     vram: []u8,
     oam: [0xA0]u8 = .{0} ** 0xA0,
 
@@ -24,8 +26,8 @@ pub const PPU = struct {
     window_x: u8 = 0,
 
     bg_palette_data: u8 = 0,
-    obj_palette_0: u8 = 0,
-    obj_palette_1: u8 = 0,
+    obp0: u8 = 0,
+    obp1: u8 = 0,
 
     frame_buffer: [SCREEN_HEIGHT * SCREEN_WIDTH]u32 = .{0} ** (SCREEN_HEIGHT * SCREEN_WIDTH),
     dots: u16 = 0,
@@ -103,13 +105,32 @@ pub const PPU = struct {
         for (0..SCREEN_WIDTH) |x| {
             const tile_index = self.getBGTileMapArea() + @as(u16, self.ly / 8) * 32 + @as(u16, @truncate(x / 8));
             const tile_number = self.vram[tile_index - 0x8000];
-            const pixel_data = self.getPixelData(tile_number, @as(u16, @truncate(x % 8)), @as(u16, self.ly % 8));
-            const pixel_color = self.getColorByPalette(pixel_data);
+            const pixel_data = self.getBackgroundPixelData(tile_number, @as(u16, @truncate(x % 8)), @as(u16, self.ly % 8));
+            const pixel_color = self.getColorByBgPalette(pixel_data);
             self.putPixel(x, self.ly, pixel_color);
+        }
+        if (self.lcdc & 0x02 > 0) {
+            for (0..40) |i| {
+                const sprite = Sprite.from_oam(self.oam[i * 4 .. (i * 4) + 4][0..4]);
+                if (sprite.y_pos > self.ly + 8 and sprite.y_pos <= self.ly + 16) {
+                    const lsb = self.vram[@as(u16, sprite.tile_index) * 16 + (if (sprite.flags.y_flip) 8 - (self.ly - (sprite.y_pos - 16)) else self.ly - (sprite.y_pos - 16)) * 2];
+                    const msb = self.vram[@as(u16, sprite.tile_index) * 16 + (if (sprite.flags.y_flip) 8 - (self.ly - (sprite.y_pos - 16)) else self.ly - (sprite.y_pos - 16)) * 2 + 1];
+                    for (0..8) |j| {
+                        const bit_index: u3 = if (sprite.flags.x_flip) @truncate(j) else @truncate(7 - j);
+                        const lsb_bit = (lsb >> bit_index) & 1;
+                        const msb_bit = (msb >> bit_index) & 1;
+                        const color_index = @as(u2, @truncate((msb_bit << 1) | lsb_bit));
+                        const color = self.getColorByObjPalette(color_index, sprite.flags.dmg_palette);
+                        if (color_index != 0) {
+                            self.putPixel(sprite.x_pos - 8 + j, self.ly, color);
+                        }
+                    }
+                }
+            }
         }
     }
 
-    fn getPixelData(self: *PPU, tile_index: u8, x: u16, y: u16) u2 {
+    fn getBackgroundPixelData(self: *PPU, tile_index: u8, x: u16, y: u16) u2 {
         std.debug.assert(x < 8 and y < 8);
         const addressing = self.getAddressingMode();
 
@@ -157,12 +178,29 @@ pub const PPU = struct {
         return if (self.lcdc & 16 > 0) .UNSIGNED else .SIGNED;
     }
 
-    inline fn getColorByPalette(self: *PPU, color_id: u2) u2 {
+    inline fn getColorByBgPalette(self: *PPU, color_id: u2) u2 {
         return switch (color_id) {
             0 => @truncate((self.bg_palette_data & 0x03)),
             1 => @truncate((self.bg_palette_data & 0x0C) >> 2),
             2 => @truncate((self.bg_palette_data & 0x30) >> 4),
             3 => @truncate((self.bg_palette_data & 0xC0) >> 6),
+        };
+    }
+
+    inline fn getColorByObjPalette(self: *PPU, color_id: u2, obp: u1) u2 {
+        return switch (obp) {
+            0 => switch (color_id) {
+                0 => @truncate((self.obp0 & 0x03)),
+                1 => @truncate((self.obp0 & 0x0C) >> 2),
+                2 => @truncate((self.obp0 & 0x30) >> 4),
+                3 => @truncate((self.obp0 & 0xC0) >> 6),
+            },
+            1 => switch (color_id) {
+                0 => @truncate((self.obp1 & 0x03)),
+                1 => @truncate((self.obp1 & 0x0C) >> 2),
+                2 => @truncate((self.obp1 & 0x30) >> 4),
+                3 => @truncate((self.obp1 & 0xC0) >> 6),
+            },
         };
     }
 

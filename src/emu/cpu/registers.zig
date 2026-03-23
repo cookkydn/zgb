@@ -65,7 +65,7 @@ pub const Registers = struct {
     }
 
     pub fn load_r8(self: *Registers, r8: instr.R8) u8 {
-        var mem = self.get_cpu().bus;
+        var mem = &self.get_cpu().bus;
         switch (r8) {
             .b => {
                 return self.b;
@@ -134,7 +134,7 @@ pub const Registers = struct {
     }
 
     pub fn set_r8(self: *Registers, r8: instr.R8, value: u8) void {
-        var mem = self.get_cpu().bus;
+        var mem = &self.get_cpu().bus;
         switch (r8) {
             .b => self.b = value,
             .c => self.c = value,

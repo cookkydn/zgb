@@ -8,6 +8,7 @@ const CPU = @import("../cpu/cpu.zig").CPU;
 const PPU = @import("../ppu/ppu.zig").PPU;
 const APU = @import("../apu/apu.zig").APU;
 const Timer = @import("../io/timer.zig").Timer;
+const Joypad = @import("../io/joypad.zig").Joypad;
 
 pub const Bus = struct {
     bios: ?[]u8,
@@ -20,6 +21,8 @@ pub const Bus = struct {
     apu: APU,
     allocator: std.mem.Allocator,
     timer: Timer = Timer.init(),
+    invalidate_cache: bool = false,
+    joypad: Joypad = Joypad{},
 
     is_bios: bool = true,
 
@@ -48,10 +51,16 @@ pub const Bus = struct {
         switch (address) {
             0x0000...0x7FFF => return, // ROM
             0x8000...0x9FFF => self.ppu.vram[address - 0x8000] = value,
-            0xC000...0xDFFF => self.wram[address - 0xC000] = value,
+            0xC000...0xDFFF => {
+                self.wram[address - 0xC000] = value;
+                self.invalidate_cache = true;
+            },
             0xFE00...0xFE9F => self.ppu.oam[address - 0xFE00] = value,
             0xFEA0...0xFEFF => return, // Not usable
-            0xFF00 => return, // TODO
+            0xFF00 => {
+                self.joypad.p1_joyp = alu.masked_write(self.joypad.p1_joyp, 0x30, value);
+                self.joypad.update_reg();
+            },
             0xFF01...0xFF02 => self.dumb_registers[address - 0xFF00] = value,
             0xFF04 => {
                 self.timer.div = 0;
@@ -61,7 +70,7 @@ pub const Bus = struct {
             0xFF06 => self.timer.tma = value,
             0xFF07 => self.timer.tac = value,
             0xFF0F => self.getCpu().interrupts.IF = value,
-            0xFF10...0xFF26 => self.apu.audio_registers[address - 0xFF10] = value,
+            0xFF10...0xFF3F => self.apu.audio_registers[address - 0xFF10] = value,
             0xFF40 => self.ppu.lcdc = value,
             0xFF41 => self.ppu.stat = alu.masked_write(self.ppu.stat, 0x78, value),
             0xFF42 => self.ppu.scy = value,
@@ -70,19 +79,26 @@ pub const Bus = struct {
             0xFF46 => {
                 self.oam_src = value;
                 const transfer_src: u16 = @as(u16, value) << 8;
-                for (0..0x9F) |i| {
+                for (0..0xA0) |i| {
                     self.ppu.oam[i] = self.read_at(transfer_src + @as(u16, @truncate(i)));
                 }
                 self.timer.tick(640);
+                self.invalidate_cache = true;
             },
             0xFF47 => self.ppu.bg_palette_data = value,
-            0xFF48 => self.ppu.obj_palette_0 = value,
-            0xFF49 => self.ppu.obj_palette_1 = value,
+            0xFF48 => self.ppu.obp0 = value,
+            0xFF49 => self.ppu.obp1 = value,
             0xFF4A => self.ppu.window_y = value,
             0xFF4B => self.ppu.window_x = value,
-            0xFF50 => self.is_bios = false,
+            0xFF50 => {
+                self.is_bios = false;
+                self.invalidate_cache = true;
+            },
             0xFF7F => return, // Unused
-            0xFF80...0xFFFE => self.hram[address - 0xFF80] = value,
+            0xFF80...0xFFFE => {
+                self.hram[address - 0xFF80] = value;
+                self.invalidate_cache = true;
+            },
             0xFFFF => self.getCpu().interrupts.IE = value,
             else => |addr| {
                 std.debug.panic("Error: Unhandled write at memory address: 0x{x:0>4}\n", .{addr});
@@ -99,15 +115,25 @@ pub const Bus = struct {
                 return self.cartridge.rom.?[address];
             },
             0x0100...0x7FFF => return self.cartridge.rom.?[address],
-
+            0x8000...0x9FFF => return self.ppu.vram[address - 0x8000],
+            0xA000...0xBFFF => return 0xFF, // RAM (TODO Implement MBC With RAM)
             0xC000...0xCFFF => return self.wram[address - 0xC000],
             0xD000...0xDFFF => return self.wram[address - 0xC000],
-            0xFF00 => return 0x3F, //TODO
+            0xE000...0xFDFF => return self.wram[address - 0xE000], // ECHO RAM
+            0xFE00...0xFE9F => return self.ppu.oam[address - 0xFE00], // OAM
+            0xFEA0...0xFEFF => return 0xFF, // Prohibited
+            0xFF00 => return self.joypad.p1_joyp,
+            0xFF04 => return self.timer.div,
             0xFF40 => return self.ppu.lcdc,
             0xFF41 => return self.ppu.stat,
             0xFF42 => return self.ppu.scy,
             0xFF43 => return self.ppu.scx,
             0xFF44 => return self.ppu.ly,
+            0xFF6C => return 0xFF, // CGB only
+            0xFF71...0xFF75 => return 0xFF, //Unused
+            0xFF76 => return 0xFF, // TODO SOUND
+            0xFF77 => return 0xFF, // TODO SOUND
+            0xFF78...0xFF7F => return 0xFF, // Unused
             0xFF80...0xFFFE => return self.hram[address - 0xFF80],
             0xFFFF => return self.getCpu().interrupts.IE,
             else => |addr| {
@@ -147,6 +173,7 @@ pub const Bus = struct {
         self.write_at(sp.*, @truncate(value >> 8));
         sp.* -= 1;
         self.write_at(sp.*, @truncate(value));
+        self.invalidate_cache = false;
     }
 
     pub fn loadBios(self: *Bus) error{BiosNotFound}!void {

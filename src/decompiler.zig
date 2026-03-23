@@ -13,7 +13,8 @@ const BitSet = std.bit_set.ArrayBitSet(usize, WORKING_SIZE);
 const panic = std.debug.panic;
 const offset_by = emu.arithmetics.offset_by;
 
-const WORKING_SIZE = 0x8000;
+const WORKING_SIZE = 0xFFFF;
+const MAX_INSTR_ANALYSIS_PER_FRAME = 20;
 const OutOfMemoryMessage = "Out of memory error in decompiler\n";
 
 pub const Decompiler = struct {
@@ -25,6 +26,12 @@ pub const Decompiler = struct {
     instruction_cache: [WORKING_SIZE]?InstructionEntry = .{null} ** WORKING_SIZE,
     display_list: AddressList,
     analysis_queue: AddressList,
+    focus: bool = false,
+
+    tabs: struct {
+        decompiler: bool = true,
+        tasks: bool = true,
+    } = .{},
 
     pub fn init(all: std.mem.Allocator, bus: *Bus) Decompiler {
         var analysis_queue = AddressList.initCapacity(all, 128) catch panic(OutOfMemoryMessage, .{});
@@ -37,8 +44,16 @@ pub const Decompiler = struct {
         };
     }
 
+    pub fn init_analysis(self: *Decompiler) void {
+        self.is_code = BitSet.initEmpty();
+        self.analysis_queue.clearRetainingCapacity();
+        self.analysis_queue.append(self.allocator, 0) catch panic(OutOfMemoryMessage, .{});
+        self.analysis_queue.append(self.allocator, 0x100) catch panic(OutOfMemoryMessage, .{});
+    }
+
     pub fn analyse_branch(self: *Decompiler) void {
         var addr = self.analysis_queue.pop() orelse return;
+        var instr_count: usize = 0;
         while (!self.is_code.isSet(addr)) {
             const entry = Instruction.take_at(self.bus, addr);
             self.is_code.set(addr);
@@ -80,13 +95,21 @@ pub const Decompiler = struct {
                     self.analysis_queue.append(self.allocator, addr) catch panic(OutOfMemoryMessage, .{});
                     break;
                 },
+                .rst_tgt3 => |arg| {
+                    self.analysis_queue.append(self.allocator, arg.target_addr) catch panic(OutOfMemoryMessage, .{});
+                    break;
+                },
 
-                .rst_tgt3,
                 .jp_hl,
                 .ret,
                 .reti,
                 => break,
                 else => {},
+            }
+            instr_count += 1;
+            if (instr_count >= MAX_INSTR_ANALYSIS_PER_FRAME) {
+                self.analysis_queue.append(self.allocator, addr) catch panic(OutOfMemoryMessage, .{});
+                break;
             }
         }
     }
@@ -151,7 +174,9 @@ pub const Decompiler = struct {
                     .inc_r16 => |arg| ig.igText("inc %s", @tagName(arg.r16).ptr),
 
                     // -- Bitwise logic --
+                    .and_a_r8 => |arg| ig.igText("and a, %s", @tagName(arg.r8).ptr),
                     .xor_a_r8 => |arg| ig.igText("xor a, %s", @tagName(arg.r8).ptr),
+                    .and_a_imm8 => |arg| ig.igText("and a, %02xh", arg.imm8),
                     .xor_a_imm8 => |arg| ig.igText("xor a, %02xh", arg.imm8),
 
                     // -- Stack manipulation --
@@ -172,6 +197,7 @@ pub const Decompiler = struct {
                     .jr_imm8 => |arg| ig.igText("jr %04xh", offset_by(@truncate(addr), arg.offset) + entry.size),
                     .jr_cond_imm8 => |arg| ig.igText("jr %s %04xh", @tagName(arg.cond).ptr, offset_by(@truncate(addr), arg.offset) + entry.size),
                     .ret => ig.igText("ret"),
+                    .rst_tgt3 => |arg| ig.igText("rst %02xh", arg.target_addr),
 
                     // -- Miscellaneous --
                     .nop => ig.igText("nop"),
@@ -230,6 +256,15 @@ pub const Decompiler = struct {
     pub fn frame(self: *Decompiler, pc: u16) void {
         if (!self.show_decompiler) return;
         defer self.last_pc = pc;
+        if (self.bus.invalidate_cache) {
+            self.bus.invalidate_cache = false;
+            self.instruction_cache = .{null} ** WORKING_SIZE;
+            self.is_code = BitSet.initEmpty();
+            self.init_analysis();
+        }
+        if (!self.is_code.isSet(pc)) {
+            self.analysis_queue.append(self.allocator, pc) catch panic(OutOfMemoryMessage, .{});
+        }
         if (self.analysis_queue.items.len > 0) {
             self.analyse_branch();
             self.update_display_list();
@@ -238,25 +273,62 @@ pub const Decompiler = struct {
         ig.igSetNextWindowPos(.{ .x = sapp.widthf() - 270, .y = 10 }, ig.ImGuiCond_Once);
         ig.igSetNextWindowSize(.{ .x = 260, .y = 580 }, ig.ImGuiCond_Once);
         if (ig.igBegin("Decompiler", &self.show_decompiler, ig.ImGuiWindowFlags_None)) {
-            var clipper: ig.ImGuiListClipper = .{};
-            if (!ig.igBeginTable("decompiler_table", 3, ig.ImGuiTableFlags_BordersInnerH)) return;
-            ig.igTableSetupColumn("addr", ig.ImGuiTableColumnFlags_WidthFixed);
-            ig.igTableSetupColumn("instr", ig.ImGuiTableColumnFlags_WidthStretch);
-            ig.igTableSetupColumn("hex", ig.ImGuiTableColumnFlags_WidthFixed);
+            if (ig.igBeginTabBar("Decompiler_tab", ig.ImGuiTabBarFlags_None)) {
+                if (ig.igBeginTabItem("Instructions", &self.tabs.decompiler, ig.ImGuiTabItemFlags_None)) {
+                    var clipper: ig.ImGuiListClipper = .{};
+                    const diff = if (pc > self.last_pc) pc -% self.last_pc else self.last_pc -% pc;
+                    if (diff > 10 or self.focus) {
+                        self.focus = false;
+                        const line_index = line_loop: {
+                            var index: f32 = 0;
+                            for (self.display_list.items) |addr| {
+                                if (addr == pc) break;
+                                index += 1;
+                            }
+                            break :line_loop index;
+                        };
 
-            // TODO set auto scroll
+                        const scroll_y = line_index * ig.igGetTextLineHeightWithSpacing();
+                        ig.igSetScrollY(scroll_y - (ig.igGetWindowHeight() / 2));
+                    }
+                    if (!ig.igBeginTable("decompiler_table", 3, ig.ImGuiTableFlags_BordersInnerH)) return;
+                    ig.igTableSetupColumn("addr", ig.ImGuiTableColumnFlags_WidthFixed);
+                    ig.igTableSetupColumn("instr", ig.ImGuiTableColumnFlags_WidthStretch);
+                    ig.igTableSetupColumn("hex", ig.ImGuiTableColumnFlags_WidthFixed);
 
-            ig.ImGuiListClipper_Begin(&clipper, @intCast(self.display_list.items.len), 0);
-            while (ig.ImGuiListClipper_Step(&clipper)) {
-                var i: i32 = clipper.DisplayStart;
-                while (i < clipper.DisplayEnd) : (i += 1) {
-                    const addr = self.display_list.items[@intCast(i)];
-                    self.render_cell(addr, pc);
+                    ig.ImGuiListClipper_Begin(&clipper, @intCast(self.display_list.items.len), 0);
+                    while (ig.ImGuiListClipper_Step(&clipper)) {
+                        var i: i32 = clipper.DisplayStart;
+                        while (i < clipper.DisplayEnd) : (i += 1) {
+                            const addr = self.display_list.items[@intCast(i)];
+                            self.render_cell(addr, pc);
+                        }
+                    }
+                    ig.ImGuiListClipper_End(&clipper);
+                    ig.igEndTable();
+                    ig.igEndTabItem();
                 }
+                if (ig.igBeginTabItem("Tasks", &self.tabs.tasks, ig.ImGuiTabItemFlags_None)) {
+                    if (ig.igButton("Reanalyse")) {
+                        self.init_analysis();
+                    }
+                    for (self.analysis_queue.items) |address| {
+                        ig.igBulletText("0x%04x", address);
+                    }
+                    ig.igEndTabItem();
+                }
+                ig.igEndTabBar();
             }
-            ig.ImGuiListClipper_End(&clipper);
-            ig.igEndTable();
+            ig.igEnd();
         }
-        ig.igEnd();
+
+        ig.igSetNextWindowPos(.{ .x = sapp.widthf() - 380, .y = 10 }, ig.ImGuiCond_Once);
+        ig.igSetNextWindowSize(.{ .x = 100, .y = 60 }, ig.ImGuiCond_Once);
+        if (ig.igBegin("Decompiler controls", &self.show_decompiler, ig.ImGuiWindowFlags_None)) {
+            if (ig.igButton("Focus")) {
+                self.focus = true;
+            }
+            ig.igEnd();
+        }
     }
 };

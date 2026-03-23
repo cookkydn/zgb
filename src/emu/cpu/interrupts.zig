@@ -56,6 +56,7 @@ pub const Interrupts = struct {
             cycles += 8;
         }
         self.get_cpu().bus.timer.tick(cycles);
+        self.get_cpu().bus.ppu.tick(cycles);
     }
 
     pub fn request_vblank(self: *Interrupts) void {

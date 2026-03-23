@@ -14,7 +14,10 @@ pub const MBCType = enum {
     pub fn from_byte(byte: u8) MBCType {
         return switch (byte) {
             0x00 => .NoMbc,
-            else => @panic("Unhandled cartridge type"),
+            else => {
+                return .NoMbc;
+                // @panic("Unhandled cartridge type")
+            },
         };
     }
 
