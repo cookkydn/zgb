@@ -13,7 +13,7 @@ const BitSet = std.bit_set.ArrayBitSet(usize, WORKING_SIZE);
 const panic = std.debug.panic;
 const offset_by = emu.arithmetics.offset_by;
 
-const WORKING_SIZE = 0xFFFF;
+const WORKING_SIZE = 0xFFFF + 1;
 const MAX_INSTR_ANALYSIS_PER_FRAME = 20;
 const OutOfMemoryMessage = "Out of memory error in decompiler\n";
 
@@ -112,6 +112,8 @@ pub const Decompiler = struct {
                 break;
             }
         }
+
+        if (self.analysis_queue.items.len == 0) self.focus = true;
     }
 
     pub fn update_display_list(self: *Decompiler) void {
@@ -124,7 +126,7 @@ pub const Decompiler = struct {
                 addr += (self.instruction_cache[addr] orelse InstructionEntry{ .instruction = .invalid, .size = 1 }).size;
             } else {
                 addr += 1;
-                if (!self.is_code.isSet(addr)) {
+                if (!self.is_code.isSet(addr) and addr < WORKING_SIZE - 1) {
                     addr += 1;
                 }
             }

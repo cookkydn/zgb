@@ -62,7 +62,7 @@ pub const PPU = struct {
     }
 
     pub fn tick(self: *PPU, cycles: u16) void {
-        if (self.lcdc & 0x80 == 0) return;
+        if (self.lcdc & 0x80 == 0) return self.turn_off();
 
         self.dots += cycles;
 
@@ -202,6 +202,16 @@ pub const PPU = struct {
                 3 => @truncate((self.obp1 & 0xC0) >> 6),
             },
         };
+    }
+
+    pub fn turn_off(self: *PPU) void {
+        if (self.frame_buffer[0] == constants.ARGB_COLOR_PALETTE.WHITE_OFF) return;
+        self.setMode(Mode.h_blank);
+        self.ly = 0;
+
+        for (0..SCREEN_HEIGHT * SCREEN_WIDTH) |i| {
+            self.frame_buffer[i] = constants.ARGB_COLOR_PALETTE.WHITE_OFF;
+        }
     }
 
     pub const Mode = enum(u2) {

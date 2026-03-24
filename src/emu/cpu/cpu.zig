@@ -132,7 +132,7 @@ pub const CPU = struct {
             .daa => {
                 var adj: u8 = 0;
                 if (reg.f.n) {
-                    if (reg.f.h) adj += 6;
+                    if (reg.f.h) adj += 0x6;
                     if (reg.f.c) adj += 0x60;
                     reg.a -%= adj;
                 } else {
@@ -284,8 +284,8 @@ pub const CPU = struct {
                 reg.f.n = false;
                 reg.f.h = alu.u8_half_add_carry(reg.a, arg.imm8);
                 reg.f.c = alu.u8_add_carry(reg.a, arg.imm8);
-                reg.f.z = reg.a == 0;
                 reg.a = reg.a +% arg.imm8;
+                reg.f.z = reg.a == 0;
                 cycles += 4;
             },
             .adc_a_imm8 => |arg| {
@@ -381,7 +381,6 @@ pub const CPU = struct {
                 cycles += 8;
             },
             .jp_imm16 => |arg| {
-                //std.debug.print("Jumping to 0x{x:0>4}\n", .{arg.imm16});
                 reg.pc = arg.imm16;
                 cycles += 12;
             },
@@ -432,6 +431,10 @@ pub const CPU = struct {
                 mem.write_at(0xFF00 | @as(u16, reg.c), reg.a);
                 cycles += 4;
             },
+            .ldh_a_c => {
+                reg.a = mem.read_at(0xFF00 | @as(u16, reg.c));
+                cycles += 4;
+            },
             .ldh_a_imm8 => |arg| {
                 reg.a = mem.read_at(0xFF00 | @as(u16, arg.imm8));
                 cycles += 8;
@@ -465,6 +468,44 @@ pub const CPU = struct {
             },
             .ei => {
                 self.state.ime = .ENABLED_NEXT;
+            },
+            .rlc_r8 => |arg| {
+                var r8 = reg.load_r8(arg.r8);
+                const result = @shlWithOverflow(r8, 1);
+
+                const bit7: u8 = if (result[1] == 1) 1 else 0;
+                r8 = result[0] | bit7;
+
+                reg.f.c = result[1] == 1;
+                reg.f.z = r8 == 0;
+                reg.f.h = false;
+                reg.f.n = false;
+
+                reg.set_r8(arg.r8, r8);
+
+                cycles += 4;
+                if (arg.r8 == .hl) {
+                    cycles += 8;
+                }
+            },
+            .rrc_r8 => |arg| {
+                var val = reg.load_r8(arg.r8);
+
+                const carry = val & 1;
+
+                val = (val >> 1) | (carry << 7);
+
+                reg.f.c = carry == 1;
+                reg.f.z = val == 0;
+                reg.f.h = false;
+                reg.f.n = false;
+
+                reg.set_r8(arg.r8, val);
+
+                cycles += 4;
+                if (arg.r8 == .hl) {
+                    cycles += 8;
+                }
             },
             .rl_r8 => |arg| {
                 const carry: u8 = if (reg.f.c) 1 else 0;
@@ -503,6 +544,21 @@ pub const CPU = struct {
                 reg.f.n = false;
                 reg.f.h = false;
                 reg.f.c = result[1] == 1;
+                cycles += 4;
+                if (arg.r8 == .hl) {
+                    cycles += 8;
+                }
+            },
+            .sra_r8 => |arg| {
+                const r8 = reg.load_r8(arg.r8);
+                const bit7 = r8 & 0x80;
+                const carry = r8 & 1;
+                const result = r8 >> 1 | bit7;
+                reg.set_r8(arg.r8, result);
+                reg.f.z = result == 0;
+                reg.f.n = false;
+                reg.f.h = false;
+                reg.f.c = carry == 1;
                 cycles += 4;
                 if (arg.r8 == .hl) {
                     cycles += 8;
@@ -561,10 +617,6 @@ pub const CPU = struct {
                 }
             },
             .invalid => {
-                unreachable;
-            },
-            else => {
-                std.debug.print("Unhandled instruction (yet)\n", .{});
                 unreachable;
             },
         }

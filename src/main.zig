@@ -56,7 +56,7 @@ export fn init() void {
     };
 
     state.cpu = emu.CPU.init(.DMG0);
-    state.cpu.?.bus.loadCartridge("tetris.gb") catch @panic("failed to load cartridge");
+    state.cpu.?.bus.loadCartridge("blarg_11.gb") catch @panic("failed to load cartridge");
     state.image = sg.makeImage(.{
         .width = 160,
         .height = 144,

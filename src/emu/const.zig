@@ -10,6 +10,7 @@ pub const SCREEN_WIDTH = 160;
 pub const SCREEN_HEIGHT = 144;
 
 pub const ARGB_COLOR_PALETTE = struct {
+    pub const WHITE_OFF = 0xFF9CBC0F;
     pub const WHITE = 0xFF9CBC0F;
     pub const LIGHT_GRAY = 0xFF8BAC0F;
     pub const DARK_GRAY = 0xFF306230;

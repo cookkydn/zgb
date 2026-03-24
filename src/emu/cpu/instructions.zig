@@ -276,19 +276,20 @@ pub const Instruction = union(enum) {
             0x30 => return .{ .jr_cond_imm8 = .{ .cond = .nc, .offset = bus.read_i8() } },
             0x31 => return .{ .ld_r16_imm16 = .{ .r16 = .sp, .imm16 = bus.read_u16() } },
             0x32 => return .{ .ld_r16mem_a = .{ .r16mem = .hld } },
-
+            0x33 => return .{ .inc_r16 = .{ .r16 = .sp } },
             0x34 => return .{ .inc_r8 = .{ .r8 = .hl } },
             0x35 => return .{ .dec_r8 = .{ .r8 = .hl } },
             0x36 => return .{ .ld_r8_imm8 = .{ .r8 = .hl, .imm8 = bus.read_u8() } },
-
+            0x37 => return .scf,
             0x38 => return .{ .jr_cond_imm8 = .{ .cond = .c, .offset = bus.read_i8() } },
-
+            0x39 => return .{ .add_hl_r16 = .{ .r16 = .sp } },
             0x3A => return .{ .ld_a_r16mem = .{ .r16mem = .hld } },
+            0x3B => return .{ .dec_r16 = .{ .r16 = .sp } },
 
             0x3C => return .{ .inc_r8 = .{ .r8 = .a } },
             0x3D => return .{ .dec_r8 = .{ .r8 = .a } },
             0x3E => return .{ .ld_r8_imm8 = .{ .r8 = .a, .imm8 = bus.read_u8() } },
-
+            0x3F => return .ccf,
             // --- 0x40 to 0x4F ---
             0x40 => return .{ .ld_r8_r8 = .{ .r8_dst = .b, .r8_src = .b } },
             0x41 => return .{ .ld_r8_r8 = .{ .r8_dst = .b, .r8_src = .c } },
@@ -362,11 +363,11 @@ pub const Instruction = union(enum) {
             0x81 => return .{ .add_a_r8 = .{ .r8 = .c } },
             0x82 => return .{ .add_a_r8 = .{ .r8 = .d } },
             0x83 => return .{ .add_a_r8 = .{ .r8 = .e } },
-
+            0x84 => return .{ .add_a_r8 = .{ .r8 = .h } },
             0x85 => return .{ .add_a_r8 = .{ .r8 = .l } },
             0x86 => return .{ .add_a_r8 = .{ .r8 = .hl } },
             0x87 => return .{ .add_a_r8 = .{ .r8 = .a } },
-
+            0x88 => return .{ .adc_a_r8 = .{ .r8 = .b } },
             0x89 => return .{ .adc_a_r8 = .{ .r8 = .c } },
             0x8A => return .{ .adc_a_r8 = .{ .r8 = .d } },
             0x8B => return .{ .adc_a_r8 = .{ .r8 = .e } },
@@ -377,11 +378,19 @@ pub const Instruction = union(enum) {
             // --- 0x90 to 0x9F ---
             0x90 => return .{ .sub_a_r8 = .{ .r8 = .b } },
             0x91 => return .{ .sub_a_r8 = .{ .r8 = .c } },
-
+            0x92 => return .{ .sub_a_r8 = .{ .r8 = .d } },
+            0x93 => return .{ .sub_a_r8 = .{ .r8 = .e } },
+            0x94 => return .{ .sub_a_r8 = .{ .r8 = .h } },
+            0x95 => return .{ .sub_a_r8 = .{ .r8 = .l } },
             0x96 => return .{ .sub_a_r8 = .{ .r8 = .hl } },
-
+            0x97 => return .{ .sub_a_r8 = .{ .r8 = .a } },
+            0x98 => return .{ .sbc_a_r8 = .{ .r8 = .b } },
             0x99 => return .{ .sbc_a_r8 = .{ .r8 = .c } },
-
+            0x9A => return .{ .sbc_a_r8 = .{ .r8 = .d } },
+            0x9B => return .{ .sbc_a_r8 = .{ .r8 = .e } },
+            0x9C => return .{ .sbc_a_r8 = .{ .r8 = .h } },
+            0x9D => return .{ .sbc_a_r8 = .{ .r8 = .l } },
+            0x9E => return .{ .sbc_a_r8 = .{ .r8 = .hl } },
             0x9F => return .{ .sbc_a_r8 = .{ .r8 = .a } },
             // --- 0xA0 to 0xAF ---
             0xA0 => return .{ .and_a_r8 = .{ .r8 = .b } },
@@ -404,15 +413,19 @@ pub const Instruction = union(enum) {
             0xB0 => return .{ .or_a_r8 = .{ .r8 = .b } },
             0xB1 => return .{ .or_a_r8 = .{ .r8 = .c } },
             0xB2 => return .{ .or_a_r8 = .{ .r8 = .d } },
-
+            0xB3 => return .{ .or_a_r8 = .{ .r8 = .e } },
+            0xB4 => return .{ .or_a_r8 = .{ .r8 = .h } },
             0xB5 => return .{ .or_a_r8 = .{ .r8 = .l } },
             0xB6 => return .{ .or_a_r8 = .{ .r8 = .hl } },
             0xB7 => return .{ .or_a_r8 = .{ .r8 = .a } },
             0xB8 => return .{ .cp_a_r8 = .{ .r8 = .b } },
-
             0xB9 => return .{ .cp_a_r8 = .{ .r8 = .c } },
-
+            0xBA => return .{ .cp_a_r8 = .{ .r8 = .d } },
+            0xBB => return .{ .cp_a_r8 = .{ .r8 = .e } },
+            0xBC => return .{ .cp_a_r8 = .{ .r8 = .h } },
+            0xBD => return .{ .cp_a_r8 = .{ .r8 = .l } },
             0xBE => return .{ .cp_a_r8 = .{ .r8 = .hl } },
+            0xBF => return .{ .cp_a_r8 = .{ .r8 = .a } },
             // --- 0xC0 to 0xCF ---
             0xC0 => return .{ .ret_cond = .{ .cond = .nz } },
             0xC1 => return .{ .pop_r16stk = .{ .r16stk = .bc } },
@@ -451,38 +464,34 @@ pub const Instruction = union(enum) {
             0xE0 => return .{ .ldh_imm8_a = .{ .imm8 = bus.read_u8() } },
             0xE1 => return .{ .pop_r16stk = .{ .r16stk = .hl } },
             0xE2 => return .ldh_c_a,
-            // 0xE3 is invalid
+            0xE3 => return .invalid,
             0xE5 => return .{ .push_r16stk = .{ .r16stk = .hl } },
             0xE6 => return .{ .and_a_imm8 = .{ .imm8 = bus.read_u8() } },
             0xE7 => return .{ .rst_tgt3 = .{ .target_addr = 0x20 } },
-
+            0xE8 => return .{ .add_sp_imm8 = .{ .offset = bus.read_i8() } },
             0xE9 => return .jp_hl,
             0xEA => return .{ .ld_imm16_a = .{ .imm16 = bus.read_u16() } },
 
             0xEE => return .{ .xor_a_imm8 = .{ .imm8 = bus.read_u8() } },
             0xEF => return .{ .rst_tgt3 = .{ .target_addr = 0x28 } },
-
             // --- 0xF0 to 0xFF ---
             0xF0 => return .{ .ldh_a_imm8 = .{ .imm8 = bus.read_u8() } },
             0xF1 => return .{ .pop_r16stk = .{ .r16stk = .af } },
-
+            0xF2 => return .ldh_a_c,
             0xF3 => return .di,
-            // OxF4 is an invalid op code
+            0xF4 => return .invalid,
             0xF5 => return .{ .push_r16stk = .{ .r16stk = .af } },
             0xF6 => return .{ .or_a_imm8 = .{ .imm8 = bus.read_u8() } },
             0xF7 => return .{ .rst_tgt3 = .{ .target_addr = 0x30 } },
-
+            0xF8 => return .{ .ld_hl_sp_plus_imm8 = .{ .offset = bus.read_i8() } },
             0xF9 => return .ld_sp_hl,
             0xFA => return .{ .ld_a_imm16 = .{ .imm16 = bus.read_u16() } },
             0xFB => return .ei,
-            // OxFC is an invalid op code
-            // OxFD is an invalid op code
+            0xFC => return .invalid,
+            0xFD => return .invalid,
             0xFE => return .{ .cp_a_imm8 = .{ .imm8 = bus.read_u8() } },
             0xFF => return .{ .rst_tgt3 = .{ .target_addr = 0x38 } },
 
-            0xE3, 0xF4, 0xFC, 0xFD => {
-                return .invalid;
-            },
             else => |code| {
                 std.debug.print("Unhandled opcode 0x{x:0>2}\n", .{code});
                 return .invalid;
@@ -493,32 +502,73 @@ pub const Instruction = union(enum) {
     pub fn prefix_from_bus(bus: *Bus) Instruction {
         switch (bus.read_u8()) {
             // --- 0x00 to 0x0F ---
-
+            0x00 => return .{ .rlc_r8 = .{ .r8 = .b } },
             0x01 => return .{ .rlc_r8 = .{ .r8 = .c } },
-
+            0x02 => return .{ .rlc_r8 = .{ .r8 = .d } },
+            0x03 => return .{ .rlc_r8 = .{ .r8 = .e } },
+            0x04 => return .{ .rlc_r8 = .{ .r8 = .h } },
+            0x05 => return .{ .rlc_r8 = .{ .r8 = .l } },
+            0x06 => return .{ .rlc_r8 = .{ .r8 = .hl } },
+            0x07 => return .{ .rlc_r8 = .{ .r8 = .a } },
+            0x08 => return .{ .rrc_r8 = .{ .r8 = .b } },
+            0x09 => return .{ .rrc_r8 = .{ .r8 = .c } },
+            0x0A => return .{ .rrc_r8 = .{ .r8 = .d } },
+            0x0B => return .{ .rrc_r8 = .{ .r8 = .e } },
+            0x0C => return .{ .rrc_r8 = .{ .r8 = .h } },
+            0x0D => return .{ .rrc_r8 = .{ .r8 = .l } },
+            0x0E => return .{ .rrc_r8 = .{ .r8 = .hl } },
+            0x0F => return .{ .rrc_r8 = .{ .r8 = .a } },
             // --- 0x10 to 0x1F ---
-
+            0x10 => return .{ .rl_r8 = .{ .r8 = .b } },
             0x11 => return .{ .rl_r8 = .{ .r8 = .c } },
             0x12 => return .{ .rl_r8 = .{ .r8 = .d } },
-
+            0x13 => return .{ .rl_r8 = .{ .r8 = .e } },
+            0x14 => return .{ .rl_r8 = .{ .r8 = .h } },
+            0x15 => return .{ .rl_r8 = .{ .r8 = .l } },
+            0x16 => return .{ .rl_r8 = .{ .r8 = .hl } },
+            0x17 => return .{ .rl_r8 = .{ .r8 = .a } },
+            0x18 => return .{ .rr_r8 = .{ .r8 = .b } },
             0x19 => return .{ .rr_r8 = .{ .r8 = .c } },
             0x1A => return .{ .rr_r8 = .{ .r8 = .d } },
             0x1B => return .{ .rr_r8 = .{ .r8 = .e } },
-
+            0x1C => return .{ .rr_r8 = .{ .r8 = .h } },
+            0x1D => return .{ .rr_r8 = .{ .r8 = .l } },
+            0x1E => return .{ .rr_r8 = .{ .r8 = .hl } },
             0x1F => return .{ .rr_r8 = .{ .r8 = .a } },
             // --- 0x20 to 0x2F ---
             0x20 => return .{ .sla_r8 = .{ .r8 = .b } },
             0x21 => return .{ .sla_r8 = .{ .r8 = .c } },
+            0x22 => return .{ .sla_r8 = .{ .r8 = .d } },
+            0x23 => return .{ .sla_r8 = .{ .r8 = .e } },
+            0x24 => return .{ .sla_r8 = .{ .r8 = .h } },
+            0x25 => return .{ .sla_r8 = .{ .r8 = .l } },
+            0x26 => return .{ .sla_r8 = .{ .r8 = .hl } },
             0x27 => return .{ .sla_r8 = .{ .r8 = .a } },
-
+            0x28 => return .{ .sra_r8 = .{ .r8 = .b } },
+            0x29 => return .{ .sra_r8 = .{ .r8 = .c } },
+            0x2A => return .{ .sra_r8 = .{ .r8 = .d } },
+            0x2B => return .{ .sra_r8 = .{ .r8 = .e } },
+            0x2C => return .{ .sra_r8 = .{ .r8 = .h } },
+            0x2D => return .{ .sra_r8 = .{ .r8 = .l } },
+            0x2E => return .{ .sra_r8 = .{ .r8 = .hl } },
+            0x2F => return .{ .sra_r8 = .{ .r8 = .a } },
             // --- 0x30 to 0x3F ---
+            0x30 => return .{ .swap_r8 = .{ .r8 = .b } },
+            0x31 => return .{ .swap_r8 = .{ .r8 = .c } },
+            0x32 => return .{ .swap_r8 = .{ .r8 = .d } },
             0x33 => return .{ .swap_r8 = .{ .r8 = .e } },
-
+            0x34 => return .{ .swap_r8 = .{ .r8 = .h } },
+            0x35 => return .{ .swap_r8 = .{ .r8 = .l } },
+            0x36 => return .{ .swap_r8 = .{ .r8 = .hl } },
             0x37 => return .{ .swap_r8 = .{ .r8 = .a } },
             0x38 => return .{ .srl_r8 = .{ .r8 = .b } },
-
-            0x3f => return .{ .srl_r8 = .{ .r8 = .a } },
-
+            0x39 => return .{ .srl_r8 = .{ .r8 = .c } },
+            0x3A => return .{ .srl_r8 = .{ .r8 = .d } },
+            0x3B => return .{ .srl_r8 = .{ .r8 = .e } },
+            0x3C => return .{ .srl_r8 = .{ .r8 = .h } },
+            0x3D => return .{ .srl_r8 = .{ .r8 = .l } },
+            0x3E => return .{ .srl_r8 = .{ .r8 = .hl } },
+            0x3F => return .{ .srl_r8 = .{ .r8 = .a } },
             // --- 0x40 to 0x4F ---
             0x40 => return .{ .bit_b3_r8 = .{ .bit_index = 0, .r8 = .b } },
             0x41 => return .{ .bit_b3_r8 = .{ .bit_index = 0, .r8 = .c } },
@@ -529,13 +579,29 @@ pub const Instruction = union(enum) {
             0x46 => return .{ .bit_b3_r8 = .{ .bit_index = 0, .r8 = .hl } },
             0x47 => return .{ .bit_b3_r8 = .{ .bit_index = 0, .r8 = .a } },
             0x48 => return .{ .bit_b3_r8 = .{ .bit_index = 1, .r8 = .b } },
-
+            0x49 => return .{ .bit_b3_r8 = .{ .bit_index = 1, .r8 = .c } },
+            0x4A => return .{ .bit_b3_r8 = .{ .bit_index = 1, .r8 = .d } },
+            0x4B => return .{ .bit_b3_r8 = .{ .bit_index = 1, .r8 = .e } },
+            0x4C => return .{ .bit_b3_r8 = .{ .bit_index = 1, .r8 = .h } },
+            0x4D => return .{ .bit_b3_r8 = .{ .bit_index = 1, .r8 = .l } },
+            0x4E => return .{ .bit_b3_r8 = .{ .bit_index = 1, .r8 = .hl } },
+            0x4F => return .{ .bit_b3_r8 = .{ .bit_index = 1, .r8 = .a } },
             // --- 0x50 to 0x5F ---
             0x50 => return .{ .bit_b3_r8 = .{ .bit_index = 2, .r8 = .b } },
-
+            0x51 => return .{ .bit_b3_r8 = .{ .bit_index = 2, .r8 = .c } },
+            0x52 => return .{ .bit_b3_r8 = .{ .bit_index = 2, .r8 = .d } },
+            0x53 => return .{ .bit_b3_r8 = .{ .bit_index = 2, .r8 = .e } },
+            0x54 => return .{ .bit_b3_r8 = .{ .bit_index = 2, .r8 = .h } },
+            0x55 => return .{ .bit_b3_r8 = .{ .bit_index = 2, .r8 = .l } },
+            0x56 => return .{ .bit_b3_r8 = .{ .bit_index = 2, .r8 = .hl } },
             0x57 => return .{ .bit_b3_r8 = .{ .bit_index = 2, .r8 = .a } },
             0x58 => return .{ .bit_b3_r8 = .{ .bit_index = 3, .r8 = .b } },
-
+            0x59 => return .{ .bit_b3_r8 = .{ .bit_index = 3, .r8 = .c } },
+            0x5A => return .{ .bit_b3_r8 = .{ .bit_index = 3, .r8 = .d } },
+            0x5B => return .{ .bit_b3_r8 = .{ .bit_index = 3, .r8 = .e } },
+            0x5C => return .{ .bit_b3_r8 = .{ .bit_index = 3, .r8 = .h } },
+            0x5D => return .{ .bit_b3_r8 = .{ .bit_index = 3, .r8 = .l } },
+            0x5E => return .{ .bit_b3_r8 = .{ .bit_index = 3, .r8 = .hl } },
             0x5F => return .{ .bit_b3_r8 = .{ .bit_index = 3, .r8 = .a } },
             // --- 0x60 to 0x6F ---
             0x60 => return .{ .bit_b3_r8 = .{ .bit_index = 4, .r8 = .b } },
@@ -580,32 +646,133 @@ pub const Instruction = union(enum) {
             0x85 => return .{ .res_b3_r8 = .{ .bit_index = 0, .r8 = .l } },
             0x86 => return .{ .res_b3_r8 = .{ .bit_index = 0, .r8 = .hl } },
             0x87 => return .{ .res_b3_r8 = .{ .bit_index = 0, .r8 = .a } },
-
+            0x88 => return .{ .res_b3_r8 = .{ .bit_index = 1, .r8 = .b } },
+            0x89 => return .{ .res_b3_r8 = .{ .bit_index = 1, .r8 = .c } },
+            0x8A => return .{ .res_b3_r8 = .{ .bit_index = 1, .r8 = .d } },
+            0x8B => return .{ .res_b3_r8 = .{ .bit_index = 1, .r8 = .e } },
+            0x8C => return .{ .res_b3_r8 = .{ .bit_index = 1, .r8 = .h } },
+            0x8D => return .{ .res_b3_r8 = .{ .bit_index = 1, .r8 = .l } },
+            0x8E => return .{ .res_b3_r8 = .{ .bit_index = 1, .r8 = .hl } },
+            0x8F => return .{ .res_b3_r8 = .{ .bit_index = 1, .r8 = .a } },
             // --- 0x90 to 0x9F ---
-
+            0x90 => return .{ .res_b3_r8 = .{ .bit_index = 2, .r8 = .b } },
+            0x91 => return .{ .res_b3_r8 = .{ .bit_index = 2, .r8 = .c } },
+            0x92 => return .{ .res_b3_r8 = .{ .bit_index = 2, .r8 = .d } },
+            0x93 => return .{ .res_b3_r8 = .{ .bit_index = 2, .r8 = .e } },
+            0x94 => return .{ .res_b3_r8 = .{ .bit_index = 2, .r8 = .h } },
+            0x95 => return .{ .res_b3_r8 = .{ .bit_index = 2, .r8 = .l } },
+            0x96 => return .{ .res_b3_r8 = .{ .bit_index = 2, .r8 = .hl } },
+            0x97 => return .{ .res_b3_r8 = .{ .bit_index = 2, .r8 = .a } },
+            0x98 => return .{ .res_b3_r8 = .{ .bit_index = 3, .r8 = .b } },
+            0x99 => return .{ .res_b3_r8 = .{ .bit_index = 3, .r8 = .c } },
+            0x9A => return .{ .res_b3_r8 = .{ .bit_index = 3, .r8 = .d } },
+            0x9B => return .{ .res_b3_r8 = .{ .bit_index = 3, .r8 = .e } },
+            0x9C => return .{ .res_b3_r8 = .{ .bit_index = 3, .r8 = .h } },
+            0x9D => return .{ .res_b3_r8 = .{ .bit_index = 3, .r8 = .l } },
             0x9E => return .{ .res_b3_r8 = .{ .bit_index = 3, .r8 = .hl } },
-
+            0x9F => return .{ .res_b3_r8 = .{ .bit_index = 3, .r8 = .a } },
+            // --- 0xA0 to 0xAF ---
+            0xA0 => return .{ .res_b3_r8 = .{ .bit_index = 4, .r8 = .b } },
+            0xA1 => return .{ .res_b3_r8 = .{ .bit_index = 4, .r8 = .c } },
+            0xA2 => return .{ .res_b3_r8 = .{ .bit_index = 4, .r8 = .d } },
+            0xA3 => return .{ .res_b3_r8 = .{ .bit_index = 4, .r8 = .e } },
+            0xA4 => return .{ .res_b3_r8 = .{ .bit_index = 4, .r8 = .h } },
+            0xA5 => return .{ .res_b3_r8 = .{ .bit_index = 4, .r8 = .l } },
+            0xA6 => return .{ .res_b3_r8 = .{ .bit_index = 4, .r8 = .hl } },
+            0xA7 => return .{ .res_b3_r8 = .{ .bit_index = 4, .r8 = .a } },
+            0xA8 => return .{ .res_b3_r8 = .{ .bit_index = 5, .r8 = .b } },
+            0xA9 => return .{ .res_b3_r8 = .{ .bit_index = 5, .r8 = .c } },
+            0xAA => return .{ .res_b3_r8 = .{ .bit_index = 5, .r8 = .d } },
+            0xAB => return .{ .res_b3_r8 = .{ .bit_index = 5, .r8 = .e } },
+            0xAC => return .{ .res_b3_r8 = .{ .bit_index = 5, .r8 = .h } },
+            0xAD => return .{ .res_b3_r8 = .{ .bit_index = 5, .r8 = .l } },
+            0xAE => return .{ .res_b3_r8 = .{ .bit_index = 5, .r8 = .hl } },
+            0xAF => return .{ .res_b3_r8 = .{ .bit_index = 5, .r8 = .a } },
             // --- 0xB0 to 0xBF ---
-
+            0xB0 => return .{ .res_b3_r8 = .{ .bit_index = 6, .r8 = .b } },
+            0xB1 => return .{ .res_b3_r8 = .{ .bit_index = 6, .r8 = .c } },
+            0xB2 => return .{ .res_b3_r8 = .{ .bit_index = 6, .r8 = .d } },
+            0xB3 => return .{ .res_b3_r8 = .{ .bit_index = 6, .r8 = .e } },
+            0xB4 => return .{ .res_b3_r8 = .{ .bit_index = 6, .r8 = .h } },
+            0xB5 => return .{ .res_b3_r8 = .{ .bit_index = 6, .r8 = .l } },
+            0xB6 => return .{ .res_b3_r8 = .{ .bit_index = 6, .r8 = .hl } },
+            0xB7 => return .{ .res_b3_r8 = .{ .bit_index = 6, .r8 = .a } },
+            0xB8 => return .{ .res_b3_r8 = .{ .bit_index = 7, .r8 = .b } },
+            0xB9 => return .{ .res_b3_r8 = .{ .bit_index = 7, .r8 = .c } },
+            0xBA => return .{ .res_b3_r8 = .{ .bit_index = 7, .r8 = .d } },
+            0xBB => return .{ .res_b3_r8 = .{ .bit_index = 7, .r8 = .e } },
+            0xBC => return .{ .res_b3_r8 = .{ .bit_index = 7, .r8 = .h } },
+            0xBD => return .{ .res_b3_r8 = .{ .bit_index = 7, .r8 = .l } },
             0xBE => return .{ .res_b3_r8 = .{ .bit_index = 7, .r8 = .hl } },
-
+            0xBF => return .{ .res_b3_r8 = .{ .bit_index = 7, .r8 = .a } },
+            // --- 0xC0 to 0xCF ---
+            0xC0 => return .{ .set_b3_r8 = .{ .bit_index = 0, .r8 = .b } },
+            0xC1 => return .{ .set_b3_r8 = .{ .bit_index = 0, .r8 = .c } },
+            0xC2 => return .{ .set_b3_r8 = .{ .bit_index = 0, .r8 = .d } },
+            0xC3 => return .{ .set_b3_r8 = .{ .bit_index = 0, .r8 = .e } },
+            0xC4 => return .{ .set_b3_r8 = .{ .bit_index = 0, .r8 = .h } },
+            0xC5 => return .{ .set_b3_r8 = .{ .bit_index = 0, .r8 = .l } },
+            0xC6 => return .{ .set_b3_r8 = .{ .bit_index = 0, .r8 = .hl } },
+            0xC7 => return .{ .set_b3_r8 = .{ .bit_index = 0, .r8 = .a } },
+            0xC8 => return .{ .set_b3_r8 = .{ .bit_index = 1, .r8 = .b } },
+            0xC9 => return .{ .set_b3_r8 = .{ .bit_index = 1, .r8 = .c } },
+            0xCA => return .{ .set_b3_r8 = .{ .bit_index = 1, .r8 = .d } },
+            0xCB => return .{ .set_b3_r8 = .{ .bit_index = 1, .r8 = .e } },
+            0xCC => return .{ .set_b3_r8 = .{ .bit_index = 1, .r8 = .h } },
+            0xCD => return .{ .set_b3_r8 = .{ .bit_index = 1, .r8 = .l } },
+            0xCE => return .{ .set_b3_r8 = .{ .bit_index = 1, .r8 = .hl } },
+            0xCF => return .{ .set_b3_r8 = .{ .bit_index = 1, .r8 = .a } },
             // --- 0xD0 to 0xDF ---
             0xD0 => return .{ .set_b3_r8 = .{ .bit_index = 2, .r8 = .b } },
-
+            0xD1 => return .{ .set_b3_r8 = .{ .bit_index = 2, .r8 = .c } },
+            0xD2 => return .{ .set_b3_r8 = .{ .bit_index = 2, .r8 = .d } },
+            0xD3 => return .{ .set_b3_r8 = .{ .bit_index = 2, .r8 = .e } },
+            0xD4 => return .{ .set_b3_r8 = .{ .bit_index = 2, .r8 = .h } },
+            0xD5 => return .{ .set_b3_r8 = .{ .bit_index = 2, .r8 = .l } },
+            0xD6 => return .{ .set_b3_r8 = .{ .bit_index = 2, .r8 = .hl } },
+            0xD7 => return .{ .set_b3_r8 = .{ .bit_index = 2, .r8 = .a } },
             0xD8 => return .{ .set_b3_r8 = .{ .bit_index = 3, .r8 = .b } },
-
+            0xD9 => return .{ .set_b3_r8 = .{ .bit_index = 3, .r8 = .c } },
+            0xDA => return .{ .set_b3_r8 = .{ .bit_index = 3, .r8 = .d } },
+            0xDB => return .{ .set_b3_r8 = .{ .bit_index = 3, .r8 = .e } },
+            0xDC => return .{ .set_b3_r8 = .{ .bit_index = 3, .r8 = .h } },
+            0xDD => return .{ .set_b3_r8 = .{ .bit_index = 3, .r8 = .l } },
             0xDE => return .{ .set_b3_r8 = .{ .bit_index = 3, .r8 = .hl } },
             0xDF => return .{ .set_b3_r8 = .{ .bit_index = 3, .r8 = .a } },
+            // --- 0xE0 to 0xEF ---
+            0xE0 => return .{ .set_b3_r8 = .{ .bit_index = 4, .r8 = .b } },
+            0xE1 => return .{ .set_b3_r8 = .{ .bit_index = 4, .r8 = .c } },
+            0xE2 => return .{ .set_b3_r8 = .{ .bit_index = 4, .r8 = .d } },
+            0xE3 => return .{ .set_b3_r8 = .{ .bit_index = 4, .r8 = .e } },
+            0xE4 => return .{ .set_b3_r8 = .{ .bit_index = 4, .r8 = .h } },
+            0xE5 => return .{ .set_b3_r8 = .{ .bit_index = 4, .r8 = .l } },
+            0xE6 => return .{ .set_b3_r8 = .{ .bit_index = 4, .r8 = .hl } },
+            0xE7 => return .{ .set_b3_r8 = .{ .bit_index = 4, .r8 = .a } },
+            0xE8 => return .{ .set_b3_r8 = .{ .bit_index = 5, .r8 = .b } },
+            0xE9 => return .{ .set_b3_r8 = .{ .bit_index = 5, .r8 = .c } },
+            0xEA => return .{ .set_b3_r8 = .{ .bit_index = 5, .r8 = .d } },
+            0xEB => return .{ .set_b3_r8 = .{ .bit_index = 5, .r8 = .e } },
+            0xEC => return .{ .set_b3_r8 = .{ .bit_index = 5, .r8 = .h } },
+            0xED => return .{ .set_b3_r8 = .{ .bit_index = 5, .r8 = .l } },
+            0xEE => return .{ .set_b3_r8 = .{ .bit_index = 5, .r8 = .hl } },
+            0xEF => return .{ .set_b3_r8 = .{ .bit_index = 5, .r8 = .a } },
             // --- 0xF0 to 0xFF ---
             0xF0 => return .{ .set_b3_r8 = .{ .bit_index = 6, .r8 = .b } },
-
+            0xF1 => return .{ .set_b3_r8 = .{ .bit_index = 6, .r8 = .c } },
+            0xF2 => return .{ .set_b3_r8 = .{ .bit_index = 6, .r8 = .d } },
+            0xF3 => return .{ .set_b3_r8 = .{ .bit_index = 6, .r8 = .e } },
+            0xF4 => return .{ .set_b3_r8 = .{ .bit_index = 6, .r8 = .h } },
+            0xF5 => return .{ .set_b3_r8 = .{ .bit_index = 6, .r8 = .l } },
+            0xF6 => return .{ .set_b3_r8 = .{ .bit_index = 6, .r8 = .hl } },
+            0xF7 => return .{ .set_b3_r8 = .{ .bit_index = 6, .r8 = .a } },
             0xF8 => return .{ .set_b3_r8 = .{ .bit_index = 7, .r8 = .b } },
-
+            0xF9 => return .{ .set_b3_r8 = .{ .bit_index = 7, .r8 = .c } },
+            0xFA => return .{ .set_b3_r8 = .{ .bit_index = 7, .r8 = .d } },
+            0xFB => return .{ .set_b3_r8 = .{ .bit_index = 7, .r8 = .e } },
+            0xFC => return .{ .set_b3_r8 = .{ .bit_index = 7, .r8 = .h } },
+            0xFD => return .{ .set_b3_r8 = .{ .bit_index = 7, .r8 = .l } },
             0xFE => return .{ .set_b3_r8 = .{ .bit_index = 7, .r8 = .hl } },
-            else => |code| {
-                std.debug.print("Unhandled prefixed opcode 0x{x:0>2}\n", .{code});
-                return .invalid;
-            },
+            0xFF => return .{ .set_b3_r8 = .{ .bit_index = 7, .r8 = .a } },
         }
     }
 
