@@ -1,3 +1,5 @@
+const std = @import("std");
+
 pub const GbModel = enum {
     DMG0,
 
@@ -9,27 +11,23 @@ pub const GbModel = enum {
 };
 
 pub const MBCType = enum {
+    None,
     NoMbc,
 
     pub fn from_byte(byte: u8) MBCType {
         return switch (byte) {
             0x00 => .NoMbc,
             else => {
+                std.debug.print("Warning: Unsuported cartridge type: 0x{x}\n", .{byte});
                 return .NoMbc;
-                // @panic("Unhandled cartridge type")
             },
-        };
-    }
-
-    pub fn getRomSize(self: MBCType) usize {
-        return switch (self) {
-            .NoMbc => 0x8000,
         };
     }
 
     pub fn getRamSize(self: MBCType) usize {
         return switch (self) {
             .NoMbc => 0x2000,
+            else => 0,
         };
     }
 };

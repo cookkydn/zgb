@@ -56,7 +56,7 @@ export fn init() void {
     };
 
     state.cpu = emu.CPU.init(.DMG0);
-    state.cpu.?.bus.loadCartridge("blarg_11.gb") catch @panic("failed to load cartridge");
+    state.cpu.?.bus.loadCartridge("tetris.gb") catch @panic("failed to load cartridge");
     state.image = sg.makeImage(.{
         .width = 160,
         .height = 144,
@@ -195,7 +195,7 @@ export fn frame() void {
     ig.igEnd();
 
     ig.igSetNextWindowPos(.{ .x = 10, .y = 490 }, ig.ImGuiCond_Once);
-    ig.igSetNextWindowSize(.{ .x = 160, .y = 100 }, ig.ImGuiCond_Once);
+    ig.igSetNextWindowSize(.{ .x = 160, .y = 140 }, ig.ImGuiCond_Once);
     if (ig.igBegin("Memory Reg", &state.show_registers, ig.ImGuiWindowFlags_None)) {
         var buf: [64]u8 = undefined;
         const s_lcdc = std.fmt.bufPrintZ(&buf, "LCDC: {b:0>8}", .{state.cpu.?.bus.ppu.lcdc}) catch "err";
@@ -206,10 +206,12 @@ export fn frame() void {
         ig.igText("%s", s_ie.ptr);
         const s_if = std.fmt.bufPrintZ(&buf, "IF:   {b:0>8}", .{state.cpu.?.interrupts.IF}) catch "err";
         ig.igText("%s", s_if.ptr);
+        ig.igText("SCX: %i", state.cpu.?.bus.ppu.scx);
+        ig.igText("SCY: %i", state.cpu.?.bus.ppu.scy);
     }
     ig.igEnd();
 
-    ig.igSetNextWindowPos(.{ .x = 10, .y = 600 }, ig.ImGuiCond_Once);
+    ig.igSetNextWindowPos(.{ .x = 10, .y = 640 }, ig.ImGuiCond_Once);
     ig.igSetNextWindowSize(.{ .x = 160, .y = 50 }, ig.ImGuiCond_Once);
     if (ig.igBegin("Joypad", &state.show_registers, ig.ImGuiWindowFlags_None)) {
         var buf: [64]u8 = undefined;
@@ -288,8 +290,11 @@ pub fn main() void {
 }
 
 fn step_emu() u16 {
-    const instr = emu.Instruction.from_bus(&state.cpu.?.bus);
-    const cycles_taken = state.cpu.?.execute_instruction(instr);
+    var cycles_taken: u16 = 4;
+    if (!state.cpu.?.state.halted) {
+        const instr = emu.Instruction.from_bus(&state.cpu.?.bus);
+        cycles_taken = state.cpu.?.execute_instruction(instr);
+    }
     state.cpu.?.bus.ppu.tick(cycles_taken);
     state.cpu.?.bus.timer.tick(cycles_taken);
     if (state.stop_on_vblank and state.cpu.?.registers.pc == 0x40) {

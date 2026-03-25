@@ -22,7 +22,7 @@ pub const Timer = struct {
     /// cycles are in T-cycles
     pub fn tick(self: *Timer, cycles: u16) void {
         self.div_counter += cycles;
-        if (self.div_counter >= 256) {
+        while (self.div_counter >= 256) {
             self.div_counter -= 256;
             self.div +%= 1;
         }

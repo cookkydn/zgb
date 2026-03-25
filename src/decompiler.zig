@@ -321,8 +321,8 @@ pub const Decompiler = struct {
                 }
                 ig.igEndTabBar();
             }
-            ig.igEnd();
         }
+        ig.igEnd();
 
         ig.igSetNextWindowPos(.{ .x = sapp.widthf() - 380, .y = 10 }, ig.ImGuiCond_Once);
         ig.igSetNextWindowSize(.{ .x = 100, .y = 60 }, ig.ImGuiCond_Once);
@@ -330,7 +330,7 @@ pub const Decompiler = struct {
             if (ig.igButton("Focus")) {
                 self.focus = true;
             }
-            ig.igEnd();
         }
+        ig.igEnd();
     }
 };

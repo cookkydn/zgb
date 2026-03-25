@@ -102,10 +102,17 @@ pub const PPU = struct {
     }
 
     fn renderScanLine(self: *PPU) void {
+        const absolute_y: u16 = (@as(u16, self.ly) + @as(u16, self.scy)) % 256;
+        const tile_y: u16 = absolute_y / 8;
+        const offset_y: u16 = absolute_y % 8;
         for (0..SCREEN_WIDTH) |x| {
-            const tile_index = self.getBGTileMapArea() + @as(u16, self.ly / 8) * 32 + @as(u16, @truncate(x / 8));
-            const tile_number = self.vram[tile_index - 0x8000];
-            const pixel_data = self.getBackgroundPixelData(tile_number, @as(u16, @truncate(x % 8)), @as(u16, self.ly % 8));
+            const absolute_x: u16 = (@as(u16, @truncate(x)) + @as(u16, self.scx)) % 256;
+            const tile_x: u16 = absolute_x / 8;
+            const offset_x: u16 = absolute_x % 8;
+
+            const tile_addr = self.getBGTileMapArea() + (tile_y * 32) + tile_x;
+            const tile_index = self.vram[tile_addr - 0x8000];
+            const pixel_data = self.getBackgroundPixelData(tile_index, offset_x, offset_y);
             const pixel_color = self.getColorByBgPalette(pixel_data);
             self.putPixel(x, self.ly, pixel_color);
         }

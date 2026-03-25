@@ -33,7 +33,7 @@ pub const Bus = struct {
     pub fn init() Bus {
         const allocator = std.heap.page_allocator;
         return .{
-            .cartridge = Cartridge.init(),
+            .cartridge = Cartridge.init(allocator),
             .bios = null,
             .ppu = PPU.init(.DMG0, allocator),
             .apu = APU.init(),
@@ -51,10 +51,12 @@ pub const Bus = struct {
         switch (address) {
             0x0000...0x7FFF => return, // ROM
             0x8000...0x9FFF => self.ppu.vram[address - 0x8000] = value,
+            0xA000...0xBFFF => self.cartridge.ram.?[address - 0xA000] = value,
             0xC000...0xDFFF => {
                 self.wram[address - 0xC000] = value;
                 self.invalidate_cache = true;
             },
+            0xE000...0xFDFF => self.wram[address - 0xE000] = value,
             0xFE00...0xFE9F => self.ppu.oam[address - 0xFE00] = value,
             0xFEA0...0xFEFF => return, // Not usable
             0xFF00 => {
@@ -123,6 +125,8 @@ pub const Bus = struct {
             0xFE00...0xFE9F => return self.ppu.oam[address - 0xFE00], // OAM
             0xFEA0...0xFEFF => return 0xFF, // Prohibited
             0xFF00 => return self.joypad.p1_joyp,
+            0xFF01 => 0xFF, //TODO Serial
+            0xFF02 => 0xFF, //TODO Serial
             0xFF04 => return self.timer.div,
             0xFF0F => return self.getCpu().interrupts.IF,
             0xFF40 => return self.ppu.lcdc,
@@ -132,6 +136,7 @@ pub const Bus = struct {
             0xFF44 => return self.ppu.ly,
             0xFF46 => return self.oam_src,
             0xFF47 => return self.ppu.bg_palette_data,
+            0xFF4D => return 0xFF, // CGB only
             0xFF57...0xFF67 => return 0xFF, // Unused
             0xFF68 => return 0xFF, // CGB only
             0xFF69 => return 0xFF, // CGB only
