@@ -285,7 +285,6 @@ pub const Instruction = union(enum) {
             0x39 => return .{ .add_hl_r16 = .{ .r16 = .sp } },
             0x3A => return .{ .ld_a_r16mem = .{ .r16mem = .hld } },
             0x3B => return .{ .dec_r16 = .{ .r16 = .sp } },
-
             0x3C => return .{ .inc_r8 = .{ .r8 = .a } },
             0x3D => return .{ .dec_r8 = .{ .r8 = .a } },
             0x3E => return .{ .ld_r8_imm8 = .{ .r8 = .a, .imm8 = bus.read_u8() } },
@@ -447,7 +446,7 @@ pub const Instruction = union(enum) {
             0xD0 => return .{ .ret_cond = .{ .cond = .nc } },
             0xD1 => return .{ .pop_r16stk = .{ .r16stk = .de } },
             0xD2 => return .{ .jp_cond_imm16 = .{ .cond = .nc, .imm16 = bus.read_u16() } },
-
+            0xD3 => return .invalid,
             0xD4 => return .{ .call_cond_imm16 = .{ .cond = .nc, .imm16 = bus.read_u16() } },
             0xD5 => return .{ .push_r16stk = .{ .r16stk = .de } },
             0xD6 => return .{ .sub_a_imm8 = .{ .imm8 = bus.read_u8() } },
@@ -455,9 +454,9 @@ pub const Instruction = union(enum) {
             0xD8 => return .{ .ret_cond = .{ .cond = .c } },
             0xD9 => return .reti,
             0xDA => return .{ .jp_cond_imm16 = .{ .cond = .c, .imm16 = bus.read_u16() } },
-
+            0xDB => return .invalid,
             0xDC => return .{ .call_cond_imm16 = .{ .cond = .c, .imm16 = bus.read_u16() } },
-
+            0xDD => return .invalid,
             0xDE => return .{ .sbc_a_imm8 = .{ .imm8 = bus.read_u8() } },
             0xDF => return .{ .rst_tgt3 = .{ .target_addr = 0x18 } },
             // --- 0xE0 to 0xEF ---
@@ -465,13 +464,16 @@ pub const Instruction = union(enum) {
             0xE1 => return .{ .pop_r16stk = .{ .r16stk = .hl } },
             0xE2 => return .ldh_c_a,
             0xE3 => return .invalid,
+            0xE4 => return .invalid,
             0xE5 => return .{ .push_r16stk = .{ .r16stk = .hl } },
             0xE6 => return .{ .and_a_imm8 = .{ .imm8 = bus.read_u8() } },
             0xE7 => return .{ .rst_tgt3 = .{ .target_addr = 0x20 } },
             0xE8 => return .{ .add_sp_imm8 = .{ .offset = bus.read_i8() } },
             0xE9 => return .jp_hl,
             0xEA => return .{ .ld_imm16_a = .{ .imm16 = bus.read_u16() } },
-
+            0xEB => return .invalid,
+            0xEC => return .invalid,
+            0xED => return .invalid,
             0xEE => return .{ .xor_a_imm8 = .{ .imm8 = bus.read_u8() } },
             0xEF => return .{ .rst_tgt3 = .{ .target_addr = 0x28 } },
             // --- 0xF0 to 0xFF ---
@@ -491,11 +493,6 @@ pub const Instruction = union(enum) {
             0xFD => return .invalid,
             0xFE => return .{ .cp_a_imm8 = .{ .imm8 = bus.read_u8() } },
             0xFF => return .{ .rst_tgt3 = .{ .target_addr = 0x38 } },
-
-            else => |code| {
-                std.debug.print("Unhandled opcode 0x{x:0>2}\n", .{code});
-                return .invalid;
-            },
         }
     }
 

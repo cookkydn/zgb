@@ -5,6 +5,7 @@ pub const Cartridge = struct {
     allocator: std.mem.Allocator,
     mbc_type: MBCType = .None,
     has_ram: bool = false,
+    rom_path: []const u8 = undefined,
     rom: ?[]u8,
     ram: ?[]u8,
 

@@ -20,7 +20,7 @@ const OutOfMemoryMessage = "Out of memory error in decompiler\n";
 pub const Decompiler = struct {
     bus: *Bus,
     allocator: std.mem.Allocator,
-    show_decompiler: bool = true,
+    visible: bool = false,
     last_pc: u16 = 0,
     is_code: BitSet = BitSet.initEmpty(),
     instruction_cache: [WORKING_SIZE]?InstructionEntry = .{null} ** WORKING_SIZE,
@@ -45,6 +45,7 @@ pub const Decompiler = struct {
     }
 
     pub fn init_analysis(self: *Decompiler) void {
+        if (!self.visible) return;
         self.is_code = BitSet.initEmpty();
         self.analysis_queue.clearRetainingCapacity();
         self.analysis_queue.append(self.allocator, 0) catch panic(OutOfMemoryMessage, .{});
@@ -163,50 +164,85 @@ pub const Decompiler = struct {
                     .adc_a_r8 => |arg| ig.igText("adc a, %s", @tagName(arg.r8).ptr),
                     .add_a_r8 => |arg| ig.igText("add a, %s", @tagName(arg.r8).ptr),
                     .cp_a_r8 => |arg| ig.igText("cp a, %s", @tagName(arg.r8).ptr),
-                    .sub_a_r8 => |arg| ig.igText("sub a, %s", @tagName(arg.r8).ptr),
-                    .inc_r8 => |arg| ig.igText("inc %s", @tagName(arg.r8).ptr),
                     .dec_r8 => |arg| ig.igText("dec %s", @tagName(arg.r8).ptr),
+                    .inc_r8 => |arg| ig.igText("inc %s", @tagName(arg.r8).ptr),
+                    .sbc_a_r8 => |arg| ig.igText("sbc a, %s", @tagName(arg.r8).ptr),
+                    .sub_a_r8 => |arg| ig.igText("sub a, %s", @tagName(arg.r8).ptr),
+                    .adc_a_imm8 => |arg| ig.igText("adc a, %02xh", arg.imm8),
                     .add_a_imm8 => |arg| ig.igText("add a, %02xh", arg.imm8),
                     .cp_a_imm8 => |arg| ig.igText("cp a, %02xh", arg.imm8),
-                    .adc_a_imm8 => |arg| ig.igText("adc a, %02xh", arg.imm8),
+                    .sbc_a_imm8 => |arg| ig.igText("sbc a, %02xh", arg.imm8),
                     .sub_a_imm8 => |arg| ig.igText("sub a, %02xh", arg.imm8),
 
                     // -- 16 bit arithmetic --
                     .add_hl_r16 => |arg| ig.igText("add hl, %s", @tagName(arg.r16).ptr),
+                    .dec_r16 => |arg| ig.igText("dec %s", @tagName(arg.r16).ptr),
                     .inc_r16 => |arg| ig.igText("inc %s", @tagName(arg.r16).ptr),
 
                     // -- Bitwise logic --
                     .and_a_r8 => |arg| ig.igText("and a, %s", @tagName(arg.r8).ptr),
+                    .cpl => ig.igText("cpl"),
+                    .or_a_r8 => |arg| ig.igText("or a, %s", @tagName(arg.r8).ptr),
                     .xor_a_r8 => |arg| ig.igText("xor a, %s", @tagName(arg.r8).ptr),
                     .and_a_imm8 => |arg| ig.igText("and a, %02xh", arg.imm8),
+                    .or_a_imm8 => |arg| ig.igText("or a, %02xh", arg.imm8),
                     .xor_a_imm8 => |arg| ig.igText("xor a, %02xh", arg.imm8),
-
-                    // -- Stack manipulation --
-                    .pop_r16stk => |arg| ig.igText("pop %s", @tagName(arg.r16stk).ptr),
-                    .push_r16stk => |arg| ig.igText("push %s", @tagName(arg.r16stk).ptr),
 
                     // -- Bit flag --
                     .bit_b3_r8 => |arg| ig.igText("bit %i, %s", @as(u8, arg.bit_index), @tagName(arg.r8).ptr),
+                    .res_b3_r8 => |arg| ig.igText("res %i, %s", @as(u8, arg.bit_index), @tagName(arg.r8).ptr),
+                    .set_b3_r8 => |arg| ig.igText("set %i, %s", @as(u8, arg.bit_index), @tagName(arg.r8).ptr),
 
                     // -- Bit shift --
                     .rl_r8 => |arg| ig.igText("rl %s", @tagName(arg.r8).ptr),
                     .rla => ig.igText("rla"),
+                    .rlc_r8 => |arg| ig.igText("rlc %s", @tagName(arg.r8).ptr),
+                    .rlca => ig.igText("rlca"),
+                    .rr_r8 => |arg| ig.igText("rr %s", @tagName(arg.r8).ptr),
+                    .rra => ig.igText("rra"),
+                    .rrc_r8 => |arg| ig.igText("rrc %s", @tagName(arg.r8).ptr),
+                    .rrca => ig.igText("rrca"),
+                    .sla_r8 => |arg| ig.igText("sla %s", @tagName(arg.r8).ptr),
+                    .sra_r8 => |arg| ig.igText("sra %s", @tagName(arg.r8).ptr),
+                    .srl_r8 => |arg| ig.igText("srl %s", @tagName(arg.r8).ptr),
+                    .swap_r8 => |arg| ig.igText("swap %s", @tagName(arg.r8).ptr),
 
                     // -- Jumps and subroutines --
                     .call_imm16 => |arg| ig.igText("call %04x", arg.imm16),
+                    .call_cond_imm16 => |arg| ig.igText("call %s %04x", @tagName(arg.cond).ptr, arg.imm16),
+                    .jp_hl => ig.igText("jp hl"),
                     .jp_imm16 => |arg| ig.igText("jp %04xh", arg.imm16),
                     .jp_cond_imm16 => |arg| ig.igText("jp %s %04xh", @tagName(arg.cond).ptr, arg.imm16),
                     .jr_imm8 => |arg| ig.igText("jr %04xh", offset_by(@truncate(addr), arg.offset) + entry.size),
                     .jr_cond_imm8 => |arg| ig.igText("jr %s %04xh", @tagName(arg.cond).ptr, offset_by(@truncate(addr), arg.offset) + entry.size),
+                    .ret_cond => |arg| ig.igText("ret %s", @tagName(arg.cond).ptr),
                     .ret => ig.igText("ret"),
+                    .reti => ig.igText("reti"),
                     .rst_tgt3 => |arg| ig.igText("rst %02xh", arg.target_addr),
 
-                    // -- Miscellaneous --
-                    .nop => ig.igText("nop"),
+                    // -- Carry flag --
+                    .ccf => ig.igText("ccf"),
+                    .scf => ig.igText("scf"),
 
-                    else => {
-                        ig.igTextColored(ig.ImVec4{ .x = 1, .y = 0.4, .z = 0.4, .w = 1 }, "unknown");
-                    },
+                    // -- Stack manipulation --
+                    .add_sp_imm8 => |arg| ig.igText("add sp, %i", arg.offset),
+                    .ld_imm16_sp => |arg| ig.igText("ld %04x, sp", arg.imm16),
+                    .ld_sp_hl => ig.igText("ld sp, hl"),
+                    .ld_hl_sp_plus_imm8 => |arg| ig.igText("ld h, sp + %i", arg.offset),
+                    .pop_r16stk => |arg| ig.igText("pop %s", @tagName(arg.r16stk).ptr),
+                    .push_r16stk => |arg| ig.igText("push %s", @tagName(arg.r16stk).ptr),
+
+                    // -- Interrupt-related --
+                    .di => ig.igText("di"),
+                    .ei => ig.igText("ei"),
+                    .halt => ig.igText("halt"),
+
+                    // -- Miscellaneous --
+                    .daa => ig.igText("daa"),
+                    .nop => ig.igText("nop"),
+                    .stop => ig.igText("stop"),
+                    .invalid => ig.igTextColored(ig.ImVec4{ .x = 1, .y = 0.4, .z = 0.4, .w = 1 }, "invalid"),
+                    .breakpoint => ig.igTextDisabled("breakpoint"),
                 }
             } else {
                 ig.igTextDisabled("loading...");
@@ -256,7 +292,7 @@ pub const Decompiler = struct {
     }
 
     pub fn frame(self: *Decompiler, pc: u16) void {
-        if (!self.show_decompiler) return;
+        if (!self.visible) return;
         defer self.last_pc = pc;
         if (self.bus.invalidate_cache) {
             self.bus.invalidate_cache = false;
@@ -272,9 +308,9 @@ pub const Decompiler = struct {
             self.update_display_list();
         }
 
-        ig.igSetNextWindowPos(.{ .x = sapp.widthf() - 270, .y = 10 }, ig.ImGuiCond_Once);
+        ig.igSetNextWindowPos(.{ .x = sapp.widthf() - 270, .y = 30 }, ig.ImGuiCond_Once);
         ig.igSetNextWindowSize(.{ .x = 260, .y = 580 }, ig.ImGuiCond_Once);
-        if (ig.igBegin("Decompiler", &self.show_decompiler, ig.ImGuiWindowFlags_None)) {
+        if (ig.igBegin("Decompiler", &self.visible, ig.ImGuiWindowFlags_None)) {
             if (ig.igBeginTabBar("Decompiler_tab", ig.ImGuiTabBarFlags_None)) {
                 if (ig.igBeginTabItem("Instructions", &self.tabs.decompiler, ig.ImGuiTabItemFlags_None)) {
                     var clipper: ig.ImGuiListClipper = .{};
@@ -320,15 +356,6 @@ pub const Decompiler = struct {
                     ig.igEndTabItem();
                 }
                 ig.igEndTabBar();
-            }
-        }
-        ig.igEnd();
-
-        ig.igSetNextWindowPos(.{ .x = sapp.widthf() - 380, .y = 10 }, ig.ImGuiCond_Once);
-        ig.igSetNextWindowSize(.{ .x = 100, .y = 60 }, ig.ImGuiCond_Once);
-        if (ig.igBegin("Decompiler controls", &self.show_decompiler, ig.ImGuiWindowFlags_None)) {
-            if (ig.igButton("Focus")) {
-                self.focus = true;
             }
         }
         ig.igEnd();

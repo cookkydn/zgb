@@ -12,23 +12,26 @@ const sgimgui = sokol.sgimgui;
 const std = @import("std");
 
 const Decompiler = @import("decompiler.zig").Decompiler;
+const RomList = @import("window/rom-list.zig").RomList;
+const DebugWindow = @import("window/debug.zig").DebugWindow;
 
 const CPU_FREQ = 4194304.0;
 
 const state = struct {
     var pass_action: sg.PassAction = .{};
-    var show_debug: bool = true;
     var show_registers: bool = true;
     var show_controls: bool = true;
     var image: sg.Image = .{};
     var sampler: sg.Sampler = .{};
     var view: sg.View = .{};
-    var cpu: ?emu.CPU = null;
+    var cpu: emu.CPU = undefined;
     var pause: bool = true;
     var decompiler: Decompiler = undefined;
     var cycle_acc: f64 = 0;
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     var stop_on_vblank: bool = false;
+    var rom_list: RomList = undefined;
+    var debug: DebugWindow = undefined;
 };
 
 export fn init() void {
@@ -56,7 +59,6 @@ export fn init() void {
     };
 
     state.cpu = emu.CPU.init(.DMG0);
-    state.cpu.?.bus.loadCartridge("tetris.gb") catch @panic("failed to load cartridge");
     state.image = sg.makeImage(.{
         .width = 160,
         .height = 144,
@@ -69,8 +71,11 @@ export fn init() void {
         .wrap_u = .CLAMP_TO_EDGE,
         .wrap_v = .CLAMP_TO_EDGE,
     });
-    state.decompiler = Decompiler.init(state.arena.allocator(), &state.cpu.?.bus);
+    state.decompiler = Decompiler.init(state.arena.allocator(), &state.cpu.bus);
     state.view = sg.makeView(.{ .texture = .{ .image = state.image } });
+    state.rom_list = RomList.init(state.arena.allocator(), &state.cpu);
+    state.rom_list.read_rom_folder() catch @panic("Failed to read ROM folder");
+    state.debug = DebugWindow.init(&state.cpu);
 }
 
 export fn frame() void {
@@ -81,18 +86,6 @@ export fn frame() void {
         .delta_time = sapp.frameDuration(),
         .dpi_scale = sapp.dpiScale(),
     });
-
-    const backendName: [*c]const u8 = switch (sg.queryBackend()) {
-        .D3D11 => "Direct3D11",
-        .GLCORE => "OpenGL",
-        .GLES3 => "OpenGLES3",
-        .METAL_IOS => "Metal iOS",
-        .METAL_MACOS => "Metal macOS",
-        .METAL_SIMULATOR => "Metal Simulator",
-        .WGPU => "WebGPU",
-        .VULKAN => "Vulkan",
-        .DUMMY => "Dummy",
-    };
 
     var instr_count: i64 = 0;
     if (!state.pause) {
@@ -107,51 +100,46 @@ export fn frame() void {
             instr_count += 1;
         }
     }
-    const ips = @as(f64, @floatFromInt(instr_count)) / sapp.frameDuration();
+    // const ips = @as(f64, @floatFromInt(instr_count)) / sapp.frameDuration();
 
     //=== UI CODE STARTS HERE
-    if (state.show_debug) {
-        ig.igSetNextWindowPos(.{ .x = 10, .y = 10 }, ig.ImGuiCond_Once);
-        ig.igSetNextWindowSize(.{ .x = 200, .y = 130 }, ig.ImGuiCond_Once);
-        if (ig.igBegin("Debug info", &state.show_debug, ig.ImGuiWindowFlags_None)) {
-            ig.igText("Dear ImGui Version: %s", ig.IMGUI_VERSION);
-            ig.igText("Sokol Backend: %s", backendName);
-            ig.igText("FPS: %.f", 1 / sapp.frameDuration());
-            ig.igText("Instr/f: %i", instr_count);
-            ig.igText("Instr/s: %.f", ips);
+    if (ig.igBeginMainMenuBar()) {
+        if (ig.igBeginMenu("File")) {
+            if (ig.igMenuItem("Open ROM")) {
+                state.rom_list.visible = !state.rom_list.visible;
+            }
+            ig.igEndMenu();
         }
-        ig.igEnd();
+
+        if (ig.igBeginMenu("Decompiler")) {
+            if (ig.igMenuItem("Show decompiler")) {
+                state.decompiler.visible = !state.decompiler.visible;
+            }
+            if (ig.igMenuItem("Focus PC")) {
+                state.decompiler.focus = true;
+            }
+            ig.igEndMenu();
+        }
+
+        if (ig.igBeginMenu("Debug")) {
+            if (ig.igMenuItem("Show debug")) {
+                state.debug.visible = !state.debug.visible;
+            }
+            ig.igEndMenu();
+        }
+
+        ig.igEndMainMenuBar();
     }
 
-    ig.igSetNextWindowPos(.{ .x = 10, .y = 150 }, ig.ImGuiCond_Once);
-    ig.igSetNextWindowSize(.{ .x = 150, .y = 170 }, ig.ImGuiCond_Once);
-    if (ig.igBegin("Registers", &state.show_registers, ig.ImGuiWindowFlags_None)) {
-        ig.igText("PC: 0x%04x", state.cpu.?.registers.pc);
-        ig.igText("AF: 0x%04x", state.cpu.?.registers.get_af());
-        ig.igText("BC: 0x%04x", state.cpu.?.registers.get_bc());
-        ig.igText("DE: 0x%04x", state.cpu.?.registers.get_de());
-        ig.igText("HL: 0x%04x", state.cpu.?.registers.get_hl());
-        ig.igText("SP: 0x%04x", state.cpu.?.registers.sp);
-        ig.igText("IME: %s", @tagName(state.cpu.?.state.ime).ptr);
-        ig.igText(
-            "F: z %i n %i h %i c %i",
-            state.cpu.?.registers.f.z,
-            state.cpu.?.registers.f.n,
-            state.cpu.?.registers.f.h,
-            state.cpu.?.registers.f.c,
-        );
-    }
-    ig.igEnd();
-
-    state.decompiler.frame(state.cpu.?.registers.pc);
-
-    ig.igSetNextWindowPos(.{ .x = 10, .y = 330 }, ig.ImGuiCond_Once);
-    ig.igSetNextWindowSize(.{ .x = 220, .y = 150 }, ig.ImGuiCond_Once);
+    state.decompiler.frame(state.cpu.registers.pc);
+    state.rom_list.frame();
+    state.debug.frame();
+    ig.igSetNextWindowPos(.{ .x = 10, .y = 30 }, ig.ImGuiCond_Once);
     if (ig.igBegin("Controls", &state.show_controls, ig.ImGuiWindowFlags_None)) {
         if (ig.igButton("Restart")) {
             state.pause = true;
             state.cpu = emu.CPU.init(.DMG0);
-            state.cpu.?.bus.loadCartridge("tetris.gb") catch @panic("failed to load cartridge");
+            state.cpu.bus.reloadCartridge() catch @panic("failed to load cartridge");
             state.decompiler.init_analysis();
         }
         ig.igSameLine();
@@ -159,10 +147,10 @@ export fn frame() void {
             state.pause = !state.pause;
         }
         if (state.pause) {
-            if (state.cpu.?.bus.is_bios) {
+            if (state.cpu.bus.is_bios) {
                 ig.igSameLine();
                 if (ig.igButton("Boot")) {
-                    while (state.cpu.?.bus.is_bios) {
+                    while (state.cpu.bus.is_bios) {
                         _ = step_emu();
                     }
                 }
@@ -193,35 +181,8 @@ export fn frame() void {
         }
     }
     ig.igEnd();
-
-    ig.igSetNextWindowPos(.{ .x = 10, .y = 490 }, ig.ImGuiCond_Once);
-    ig.igSetNextWindowSize(.{ .x = 160, .y = 140 }, ig.ImGuiCond_Once);
-    if (ig.igBegin("Memory Reg", &state.show_registers, ig.ImGuiWindowFlags_None)) {
-        var buf: [64]u8 = undefined;
-        const s_lcdc = std.fmt.bufPrintZ(&buf, "LCDC: {b:0>8}", .{state.cpu.?.bus.ppu.lcdc}) catch "err";
-        ig.igText("%s", s_lcdc.ptr);
-        const s_ly = std.fmt.bufPrintZ(&buf, "LY:   {b:0>8} (0x{x})", .{ state.cpu.?.bus.ppu.ly, state.cpu.?.bus.ppu.ly }) catch "err";
-        ig.igText("%s", s_ly.ptr);
-        const s_ie = std.fmt.bufPrintZ(&buf, "IE:   {b:0>8}", .{state.cpu.?.interrupts.IE}) catch "err";
-        ig.igText("%s", s_ie.ptr);
-        const s_if = std.fmt.bufPrintZ(&buf, "IF:   {b:0>8}", .{state.cpu.?.interrupts.IF}) catch "err";
-        ig.igText("%s", s_if.ptr);
-        ig.igText("SCX: %i", state.cpu.?.bus.ppu.scx);
-        ig.igText("SCY: %i", state.cpu.?.bus.ppu.scy);
-    }
-    ig.igEnd();
-
-    ig.igSetNextWindowPos(.{ .x = 10, .y = 640 }, ig.ImGuiCond_Once);
-    ig.igSetNextWindowSize(.{ .x = 160, .y = 50 }, ig.ImGuiCond_Once);
-    if (ig.igBegin("Joypad", &state.show_registers, ig.ImGuiWindowFlags_None)) {
-        var buf: [64]u8 = undefined;
-        const s_lcdc = std.fmt.bufPrintZ(&buf, "Joy: {b:0>8}", .{state.cpu.?.bus.joypad.p1_joyp}) catch "err";
-        ig.igText("%s", s_lcdc.ptr);
-    }
-    ig.igEnd();
-
     var data = sg.ImageData{};
-    data.mip_levels[0] = sg.asRange(&state.cpu.?.bus.ppu.frame_buffer);
+    data.mip_levels[0] = sg.asRange(&state.cpu.bus.ppu.frame_buffer);
 
     sg.updateImage(state.image, data);
 
@@ -237,7 +198,7 @@ export fn frame() void {
     const render_w: f32 = 160 * ratio;
     const render_h: f32 = 144 * ratio;
     const x0 = (sapp.widthf() - render_w) / 2.0;
-    const y0 = (sapp.heightf() - render_h) / 2.0;
+    const y0 = (sapp.heightf() - render_h) / 2.0 + 10;
 
     sgl.beginQuads();
     sgl.v2fT2f(x0, y0, 0.0, 0.0);
@@ -272,7 +233,7 @@ export fn cleanup() void {
 export fn event(ev: [*c]const sapp.Event) void {
     _ = simgui.handleEvent(ev.*);
     if (ig.igGetIO().*.WantCaptureKeyboard) return;
-    state.cpu.?.bus.joypad.handle_event(ev);
+    state.cpu.bus.joypad.handle_event(ev);
 }
 
 pub fn main() void {
@@ -291,16 +252,16 @@ pub fn main() void {
 
 fn step_emu() u16 {
     var cycles_taken: u16 = 4;
-    if (!state.cpu.?.state.halted) {
-        const instr = emu.Instruction.from_bus(&state.cpu.?.bus);
-        cycles_taken = state.cpu.?.execute_instruction(instr);
+    if (!state.cpu.state.halted) {
+        const instr = emu.Instruction.from_bus(&state.cpu.bus);
+        cycles_taken = state.cpu.execute_instruction(instr);
     }
-    state.cpu.?.bus.ppu.tick(cycles_taken);
-    state.cpu.?.bus.timer.tick(cycles_taken);
-    if (state.stop_on_vblank and state.cpu.?.registers.pc == 0x40) {
+    state.cpu.bus.ppu.tick(cycles_taken);
+    state.cpu.bus.timer.tick(cycles_taken);
+    if (state.stop_on_vblank and state.cpu.registers.pc == 0x40) {
         state.pause = true;
         state.stop_on_vblank = false;
     }
-    state.cpu.?.interrupts.handle_interrupts();
+    state.cpu.interrupts.handle_interrupts();
     return cycles_taken;
 }

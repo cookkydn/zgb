@@ -22,10 +22,11 @@ pub const PPU = struct {
     scy: u8 = 0,
     scx: u8 = 0,
     ly: u8 = 0,
+    lyc: u8 = 0,
     window_y: u8 = 0,
     window_x: u8 = 0,
 
-    bg_palette_data: u8 = 0,
+    bgp: u8 = 0,
     obp0: u8 = 0,
     obp1: u8 = 0,
 
@@ -187,10 +188,10 @@ pub const PPU = struct {
 
     inline fn getColorByBgPalette(self: *PPU, color_id: u2) u2 {
         return switch (color_id) {
-            0 => @truncate((self.bg_palette_data & 0x03)),
-            1 => @truncate((self.bg_palette_data & 0x0C) >> 2),
-            2 => @truncate((self.bg_palette_data & 0x30) >> 4),
-            3 => @truncate((self.bg_palette_data & 0xC0) >> 6),
+            0 => @truncate((self.bgp & 0x03)),
+            1 => @truncate((self.bgp & 0x0C) >> 2),
+            2 => @truncate((self.bgp & 0x30) >> 4),
+            3 => @truncate((self.bgp & 0xC0) >> 6),
         };
     }
 

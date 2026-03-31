@@ -49,21 +49,30 @@ pub const Bus = struct {
 
     pub fn write_at(self: *Bus, address: u16, value: u8) void {
         switch (address) {
-            0x0000...0x7FFF => return, // ROM
+            // -- ROM --
+            0x0000...0x7FFF => return,
+            // -- VRAM --
             0x8000...0x9FFF => self.ppu.vram[address - 0x8000] = value,
+            // -- Cartridge RAM --
             0xA000...0xBFFF => self.cartridge.ram.?[address - 0xA000] = value,
+            // -- Work ram --
             0xC000...0xDFFF => {
                 self.wram[address - 0xC000] = value;
                 self.invalidate_cache = true;
             },
+            // -- Echo ram --
             0xE000...0xFDFF => self.wram[address - 0xE000] = value,
+            // -- OAM --
             0xFE00...0xFE9F => self.ppu.oam[address - 0xFE00] = value,
-            0xFEA0...0xFEFF => return, // Not usable
+            // -- Not usable --
+            0xFEA0...0xFEFF => return,
+            // -- Registers --
             0xFF00 => {
                 self.joypad.p1_joyp = alu.masked_write(self.joypad.p1_joyp, 0x30, value);
                 self.joypad.update_reg();
             },
             0xFF01...0xFF02 => self.dumb_registers[address - 0xFF00] = value,
+            0xFF03 => {}, //unused
             0xFF04 => {
                 self.timer.div = 0;
                 self.timer.div_counter = 0;
@@ -71,13 +80,15 @@ pub const Bus = struct {
             0xFF05 => self.timer.tima = value,
             0xFF06 => self.timer.tma = value,
             0xFF07 => self.timer.tac = value,
+            0xFF08...0xFF0E => {}, // unused
             0xFF0F => self.getCpu().interrupts.IF = value,
             0xFF10...0xFF3F => self.apu.audio_registers[address - 0xFF10] = value,
             0xFF40 => self.ppu.lcdc = value,
             0xFF41 => self.ppu.stat = alu.masked_write(self.ppu.stat, 0x78, value),
             0xFF42 => self.ppu.scy = value,
             0xFF43 => self.ppu.scx = value,
-            0xFF44 => return, // Ly (readonly)
+            0xFF44 => {}, // Ly (readonly)
+            0xFF45 => self.ppu.lyc = value,
             0xFF46 => {
                 self.oam_src = value;
                 const transfer_src: u16 = @as(u16, value) << 8;
@@ -87,24 +98,28 @@ pub const Bus = struct {
                 self.timer.tick(640);
                 self.invalidate_cache = true;
             },
-            0xFF47 => self.ppu.bg_palette_data = value,
+            0xFF47 => self.ppu.bgp = value,
             0xFF48 => self.ppu.obp0 = value,
             0xFF49 => self.ppu.obp1 = value,
             0xFF4A => self.ppu.window_y = value,
             0xFF4B => self.ppu.window_x = value,
+            0xFF4C => {}, // CGB only
+            0xFF4D => {}, // CGB only
+            0xFF4E => {}, // unused
+            0xFF4F => {}, // CGB only
             0xFF50 => {
                 self.is_bios = false;
                 self.invalidate_cache = true;
             },
-            0xFF7F => return, // Unused
+            0xFF51...0xFF77 => {}, // CGB only
+            0xFF78...0xFF7F => {}, // Unused
+            // -- High ram --
             0xFF80...0xFFFE => {
                 self.hram[address - 0xFF80] = value;
                 self.invalidate_cache = true;
             },
+            // -- IE --
             0xFFFF => self.getCpu().interrupts.IE = value,
-            else => |addr| {
-                std.debug.panic("Error: Unhandled write at memory address: 0x{x:0>4}\n", .{addr});
-            },
         }
     }
 
@@ -116,7 +131,7 @@ pub const Bus = struct {
                 }
                 return self.cartridge.rom.?[address];
             },
-            0x0100...0x7FFF => return self.cartridge.rom.?[address],
+            0x0100...0x7FFF => return if (self.cartridge.rom) |rom| rom[address] else 0xFF,
             0x8000...0x9FFF => return self.ppu.vram[address - 0x8000],
             0xA000...0xBFFF => return 0xFF, // RAM (TODO Implement MBC With RAM)
             0xC000...0xCFFF => return self.wram[address - 0xC000],
@@ -135,7 +150,7 @@ pub const Bus = struct {
             0xFF43 => return self.ppu.scx,
             0xFF44 => return self.ppu.ly,
             0xFF46 => return self.oam_src,
-            0xFF47 => return self.ppu.bg_palette_data,
+            0xFF47 => return self.ppu.bgp,
             0xFF4D => return 0xFF, // CGB only
             0xFF57...0xFF67 => return 0xFF, // Unused
             0xFF68 => return 0xFF, // CGB only
@@ -207,11 +222,14 @@ pub const Bus = struct {
         self.cartridge.allocator.free(self.cartridge.rom);
     }
 
+    pub fn reloadCartridge(self: *Bus) !void {
+        try self.loadCartridge(self.cartridge.rom_path);
+    }
+
     pub fn loadCartridge(
         self: *Bus,
-        name: []const u8,
+        path: []const u8,
     ) error{CartridgeNotFound}!void {
-        const path = std.fs.path.join(self.allocator, &.{ ".", "carts", name }) catch @panic("Cannot load cartridge, outOfMemory error\n");
         const file = std.fs.cwd().openFile(path, .{ .mode = .read_only }) catch return error.CartridgeNotFound;
         defer file.close();
         const stat = file.stat() catch @panic("Cannot get file stat\n");
@@ -224,5 +242,7 @@ pub const Bus = struct {
         const ram_size = cartridge_type.getRamSize();
         const ram = self.allocator.alloc(u8, ram_size) catch @panic("Cannot allocate ram: OutOfMemory error\n");
         self.cartridge.ram = ram;
+        self.cartridge.rom_path = self.allocator.dupe(u8, path) catch @panic("Failed to copy path");
+        self.getCpu().registers.pc = 0;
     }
 };
