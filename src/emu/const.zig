@@ -23,3 +23,9 @@ pub const CartridgeType = 0x0147;
 // Memory registers
 pub const IF = 0xFF0F;
 pub const IE = 0xFFFF;
+
+// Cpu
+pub const CPU_FREQ: u32 = 4194304;
+
+// Sound
+pub const SAMPLE_RATE: u32 = 48000;

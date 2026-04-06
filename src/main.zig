@@ -9,6 +9,7 @@ const sapp = sokol.app;
 const sglue = sokol.glue;
 const simgui = sokol.imgui;
 const sgimgui = sokol.sgimgui;
+const sgaudio = sokol.audio;
 const std = @import("std");
 
 const Decompiler = @import("decompiler.zig").Decompiler;
@@ -76,6 +77,11 @@ export fn init() void {
     state.rom_list = RomList.init(state.arena.allocator(), &state.cpu);
     state.rom_list.read_rom_folder() catch @panic("Failed to read ROM folder");
     state.debug = DebugWindow.init(&state.cpu);
+    sgaudio.setup(.{
+        .sample_rate = 48000,
+        .logger = .{ .func = slog.func },
+        .num_channels = 2,
+    });
 }
 
 export fn frame() void {
@@ -227,6 +233,7 @@ export fn cleanup() void {
     state.arena.deinit();
     simgui.shutdown();
     sgimgui.shutdown();
+    sgaudio.shutdown();
     sg.shutdown();
 }
 
@@ -258,6 +265,7 @@ fn step_emu() u16 {
     }
     state.cpu.bus.ppu.tick(cycles_taken);
     state.cpu.bus.timer.tick(cycles_taken);
+    state.cpu.bus.apu.tick(cycles_taken);
     if (state.stop_on_vblank and state.cpu.registers.pc == 0x40) {
         state.pause = true;
         state.stop_on_vblank = false;

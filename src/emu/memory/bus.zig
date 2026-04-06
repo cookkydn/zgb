@@ -36,7 +36,7 @@ pub const Bus = struct {
             .cartridge = Cartridge.init(allocator),
             .bios = null,
             .ppu = PPU.init(.DMG0, allocator),
-            .apu = APU.init(),
+            .apu = APU.init(allocator),
             .allocator = allocator,
         };
     }
@@ -82,7 +82,35 @@ pub const Bus = struct {
             0xFF07 => self.timer.tac = value,
             0xFF08...0xFF0E => {}, // unused
             0xFF0F => self.getCpu().interrupts.IF = value,
-            0xFF10...0xFF3F => self.apu.audio_registers[address - 0xFF10] = value,
+            0xFF10 => self.apu.nr10 = value,
+            0xFF11 => self.apu.nr11 = value,
+            0xFF12 => self.apu.nr12 = value,
+            0xFF13 => self.apu.nr13 = value,
+            0xFF14 => {
+                if (value & 0x80 > 0) self.apu.trigger_ch1();
+                self.apu.nr14 = alu.masked_write(self.apu.nr14, 0xC7, value);
+            },
+            0xFF15 => {}, // unused
+            0xFF16 => self.apu.nr21 = value,
+            0xFF17 => {
+                // Turn of channel 2
+                if (value & 0xF8 == 0) {
+                    self.apu.nr52 &= 0xFD;
+                }
+                self.apu.nr22 = value;
+            },
+            0xFF18 => self.apu.nr23 = value,
+            0xFF19 => {
+                if (value & 0x80 > 0) self.apu.trigger_ch2();
+                self.apu.nr24 = alu.masked_write(self.apu.nr24, 0xC7, value);
+            },
+            0xFF1A...0xFF25 => self.apu.audio_registers[address - 0xFF10] = value,
+            0xFF26 => {
+                if (value & 0x80 == 0) self.apu.turn_off();
+
+                self.apu.nr52 = alu.masked_write(self.apu.nr52, 0x80, value);
+            },
+            0xFF27...0xFF3F => self.apu.audio_registers[address - 0xFF10] = value,
             0xFF40 => self.ppu.lcdc = value,
             0xFF41 => self.ppu.stat = alu.masked_write(self.ppu.stat, 0x78, value),
             0xFF42 => self.ppu.scy = value,
@@ -144,6 +172,10 @@ pub const Bus = struct {
             0xFF02 => 0xFF, //TODO Serial
             0xFF04 => return self.timer.div,
             0xFF0F => return self.getCpu().interrupts.IF,
+            0xFF16 => return self.apu.nr21 | 0x3F,
+            0xFF17 => return self.apu.nr22,
+            0xFF18 => return 0xFF,
+            0xFF19 => return self.apu.nr24 | 0xBF,
             0xFF40 => return self.ppu.lcdc,
             0xFF41 => return self.ppu.stat,
             0xFF42 => return self.ppu.scy,
