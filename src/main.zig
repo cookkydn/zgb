@@ -1,18 +1,8 @@
-const emu = @import("emu/root.zig");
-const ig = @import("cimgui");
-const sokol = @import("sokol");
-const slog = sokol.log;
-const sg = sokol.gfx;
-const sgl = sokol.gl;
-const sapp = sokol.app;
-const sglue = sokol.glue;
-const simgui = sokol.imgui;
-const sgimgui = sokol.sgimgui;
-const sgaudio = sokol.audio;
-const std = @import("std");
 const AppState = @import("app.zig").AppState;
-const Decompiler = @import("decompiler.zig").Decompiler;
-const RomBrowser = @import("panels/rom-browser.zig").RomBrowser;
+const sokol = @import("sokol");
+const std = @import("std");
+const slog = sokol.log;
+const sapp = sokol.app;
 
 var app_ref: *AppState = undefined;
 
@@ -41,11 +31,6 @@ pub fn main() void {
 export fn init(user_data: ?*anyopaque) void {
     const app: *AppState = @ptrCast(@alignCast(user_data.?));
     app.init_sokol();
-
-    // app.decompiler = Decompiler.init(app.allocator, &app.emu.cpu.bus);
-    // app.rom_list = RomList.init(app.allocator, &app.emu.cpu);
-    // app.rom_list.read_rom_folder() catch @panic("Failed to read ROM folder");
-    // app.debug = DebugWindow.init(&app.emu.cpu);
 }
 
 pub const panic = std.debug.FullPanic(crash);
