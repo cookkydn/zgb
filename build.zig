@@ -9,8 +9,7 @@ const cimgui = @import("cimgui");
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
-    const opt_docking = b.option(bool, "docking", "Build with docking support") orelse false;
-    const cimgui_conf = cimgui.getConfig(opt_docking);
+    const cimgui_conf = cimgui.getConfig(true);
 
     const dep_sokol = b.dependency("sokol", .{
         .target = target,
@@ -31,13 +30,11 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         .imports = &.{
             .{ .name = "sokol", .module = dep_sokol.module("sokol") },
-            .{ .name = cimgui_conf.module_name, .module = dep_cimgui.module(cimgui_conf.module_name) },
+            .{ .name = "cimgui", .module = dep_cimgui.module(cimgui_conf.module_name) },
         },
     });
 
     const mod_options = b.addOptions();
-
-    mod_options.addOption(bool, "docking", opt_docking);
     mod_main.addOptions("build_options", mod_options);
 
     const exe = b.addExecutable(.{

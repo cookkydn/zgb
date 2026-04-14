@@ -1,6 +1,5 @@
-const use_docking = @import("build_options").docking;
 const std = @import("std");
-const ig = if (use_docking) @import("cimgui_docking") else @import("cimgui");
+const ig = @import("cimgui");
 const emu = @import("emu/root.zig");
 const Instruction = emu.Instruction;
 const Bus = emu.Bus;

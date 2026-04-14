@@ -42,7 +42,7 @@ pub const Bus = struct {
     }
 
     pub fn deinit(self: *Bus) void {
-        self.cartridge.deinit(self.allocator);
+        self.cartridge.deinit();
         self.ppu.deinit(self.allocator);
         self.apu.deinit();
     }
