@@ -36,7 +36,7 @@ export fn init(user_data: ?*anyopaque) void {
 pub const panic = std.debug.FullPanic(crash);
 
 pub fn crash(msg: []const u8, first_trace_addr: ?usize) noreturn {
-    app_ref.emu.print_performance_report();
+    app_ref.emu.print_debug_info();
     std.debug.defaultPanic(msg, first_trace_addr);
 }
 

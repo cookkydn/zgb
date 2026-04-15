@@ -4,6 +4,7 @@ const Decompiler = @import("decompiler.zig").Decompiler;
 const Texture = @import("ui/texture.zig").Texture;
 const LayoutManager = @import("ui/layout.zig").LayoutManager;
 const RomBrowser = @import("panels/rom-browser.zig").RomBrowser;
+const SettingsPanel = @import("panels/settings.zig").SettingsPanel;
 const Menu = @import("ui/menu.zig");
 
 const std = @import("std");
@@ -141,6 +142,7 @@ pub const EmuState = struct {
     is_overloaded: bool = false,
     overload_count: u32 = 0,
     cycle_acc: f64 = 0,
+    volume: f32 = 0.1,
 
     const CPU_FREQ = 4194304.0;
 
@@ -179,6 +181,17 @@ pub const EmuState = struct {
         ig.igEnd();
     }
 
+    pub fn push_sound(self: *EmuState) void {
+        const apu = &self.cpu.bus.apu;
+        if (apu.buffer_index >= apu.buffer.len) {
+            apu.buffer_index = 0;
+            for (apu.buffer, 0..) |_, i| {
+                apu.buffer[i] *= self.volume;
+            }
+            _ = sgaudio.push(&apu.buffer[0], apu.buffer.len / 2);
+        }
+    }
+
     pub fn frame_emu(self: *EmuState) void {
         if (!self.pause) {
             self.cycle_acc += sapp.frameDuration() * CPU_FREQ;
@@ -200,14 +213,25 @@ pub const EmuState = struct {
                 self.cpu.bus.ppu.tick(cycles_taken);
                 self.cpu.bus.timer.tick(cycles_taken);
                 self.cpu.bus.apu.tick(cycles_taken);
+                self.push_sound();
                 self.cpu.interrupts.handle_interrupts();
                 self.cycle_acc -= @floatFromInt(cycles_taken);
             }
         }
     }
 
-    pub fn print_performance_report(self: EmuState) void {
+    pub fn print_debug_info(self: EmuState) void {
         const print = std.debug.print;
+        print("====== DEBUG REPORT ======\n", .{});
+        if (self.cpu.bus.cartridge) |cartridge| {
+            print("=> Cartridge type: {s}\n", .{@tagName(cartridge.mbc_type)});
+            print("=> Cartridge rom size: 0x{x}\n", .{cartridge.rom.len});
+            print("=> Cartridge ram size: 0x{x}\n", .{cartridge.ram.len});
+            print("=> Cartridge rom bank: 0x{x}\n", .{cartridge.rom_bank});
+            print("=> Cartridge ram bank: 0x{x}\n", .{cartridge.ram_bank});
+        } else {
+            print("=> No cartridge\n", .{});
+        }
         print("=== PERFORMANCE REPORT ===\n", .{});
         if (self.overload_count > 0) {
             print("=> Overload count: {}\n", .{self.overload_count});
@@ -241,9 +265,13 @@ pub const LayoutState = struct {
 
 pub const PanelsState = struct {
     rom_browser: RomBrowser,
+    settings: SettingsPanel,
 
     pub fn init(all: Allocator) PanelsState {
-        return .{ .rom_browser = RomBrowser.init(all) };
+        return .{
+            .rom_browser = RomBrowser.init(all),
+            .settings = SettingsPanel{},
+        };
     }
 
     pub fn deinit(self: *PanelsState) void {
@@ -251,7 +279,9 @@ pub const PanelsState = struct {
     }
 
     pub fn draw_panels(self: *PanelsState) void {
-        self.rom_browser.draw(get_app(self, "panels"));
+        const app = get_app(self, "panels");
+        self.rom_browser.draw(app);
+        self.settings.draw(app);
     }
 };
 

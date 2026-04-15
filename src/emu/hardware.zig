@@ -11,23 +11,18 @@ pub const GbModel = enum {
 };
 
 pub const MBCType = enum {
-    None,
-    NoMbc,
+    NOMBC,
+    MBC1,
+    Other,
 
     pub fn from_byte(byte: u8) MBCType {
         return switch (byte) {
-            0x00 => .NoMbc,
+            0x00 => .NOMBC,
+            0x01 => .MBC1,
             else => {
                 std.debug.print("Warning: Unsuported cartridge type: 0x{x}\n", .{byte});
-                return .NoMbc;
+                return .Other;
             },
-        };
-    }
-
-    pub fn getRamSize(self: MBCType) usize {
-        return switch (self) {
-            .NoMbc => 0x2000,
-            else => 0,
         };
     }
 };

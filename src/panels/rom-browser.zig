@@ -1,6 +1,7 @@
 const std = @import("std");
 const ig = @import("cimgui");
 const AppState = @import("../app.zig").AppState;
+const Cartridge = @import("../emu/memory/cartridge.zig").Cartridge;
 
 pub const RomBrowser = struct {
     visible: bool = false,
@@ -72,6 +73,7 @@ pub const RomBrowser = struct {
         if (!self.visible) return;
 
         ig.igSetNextWindowSize(.{ .x = 400, .y = 300 }, ig.ImGuiCond_FirstUseEver);
+        ig.igSetNextWindowFocus();
 
         if (ig.igBegin("Sélectionner une ROM", &self.visible, ig.ImGuiWindowFlags_None)) {
             if (ig.igButton("Rafraîchir")) {
@@ -126,7 +128,8 @@ pub const RomBrowser = struct {
     fn loadRom(self: *RomBrowser, app: *AppState, filename: [:0]const u8) void {
         const full_path = std.fmt.allocPrintSentinel(self.allocator, "{s}/{s}", .{ self.current_path, filename }, 0) catch return;
         defer self.allocator.free(full_path);
-        app.emu.cpu.bus.loadCartridge(full_path) catch @panic("Failed to load cartridge");
+        const cart = Cartridge.from_file(full_path, self.allocator) catch @panic("Failed to open rom");
+        app.emu.cpu.bus.cartridge = cart;
         app.emu.pause = false;
         self.visible = false;
     }

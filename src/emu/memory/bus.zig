@@ -16,7 +16,7 @@ pub const Bus = struct {
     hram: [0x7F]u8 = [_]u8{0} ** 0x7F,
     dumb_registers: [0x77]u8 = .{0} ** 0x77,
     oam_src: u8 = 0,
-    cartridge: Cartridge,
+    cartridge: ?Cartridge,
     ppu: PPU,
     apu: APU,
     allocator: std.mem.Allocator,
@@ -33,7 +33,7 @@ pub const Bus = struct {
     pub fn init() Bus {
         const allocator = std.heap.page_allocator;
         return .{
-            .cartridge = Cartridge.init(allocator),
+            .cartridge = null,
             .bios = null,
             .ppu = PPU.init(.DMG0, allocator),
             .apu = APU.init(allocator),
@@ -42,19 +42,36 @@ pub const Bus = struct {
     }
 
     pub fn deinit(self: *Bus) void {
-        self.cartridge.deinit();
+        if (self.cartridge) |cartridge| {
+            cartridge.deinit();
+        }
         self.ppu.deinit(self.allocator);
         self.apu.deinit();
+        if (self.bios) |bios| {
+            self.allocator.free(bios);
+        }
     }
 
     pub fn write_at(self: *Bus, address: u16, value: u8) void {
         switch (address) {
             // -- ROM --
-            0x0000...0x7FFF => return,
+            0x0000...0x1FFF => return,
+            0x2000...0x3FFF => {
+                switch (self.cartridge.?.mbc_type) {
+                    .NOMBC => return,
+                    .MBC1 => self.cartridge.?.rom_bank = @truncate((value & 0x1F)),
+                    .Other => return,
+                }
+            },
+            0x4000...0x7FFF => return,
             // -- VRAM --
             0x8000...0x9FFF => self.ppu.vram[address - 0x8000] = value,
             // -- Cartridge RAM --
-            0xA000...0xBFFF => self.cartridge.ram.?[address - 0xA000] = value,
+            0xA000...0xBFFF => {
+                if (self.cartridge.?.ram.len != 0) {
+                    self.cartridge.?.ram[address - 0xA000] = value;
+                }
+            },
             // -- Work ram --
             0xC000...0xDFFF => {
                 self.wram[address - 0xC000] = value;
@@ -157,9 +174,31 @@ pub const Bus = struct {
                 if (self.is_bios) {
                     return self.bios.?[address];
                 }
-                return self.cartridge.rom.?[address];
+                return self.cartridge.?.rom[address];
             },
-            0x0100...0x7FFF => return if (self.cartridge.rom) |rom| rom[address] else 0xFF,
+            0x0100...0x3FFF => return self.cartridge.?.rom[address],
+            0x4000...0x7FFF => {
+                switch (self.cartridge.?.mbc_type) {
+                    .NOMBC => return self.cartridge.?.rom[address],
+                    .MBC1 => {
+                        var bank: usize = self.cartridge.?.rom_bank;
+                        if (bank == 0) bank = 1;
+
+                        bank |= (@as(usize, self.cartridge.?.ram_bank) << 5);
+
+                        const offset_in_bank = address - 0x4000;
+
+                        const num_banks = self.cartridge.?.rom.len / 0x4000;
+                        const safe_bank = if (num_banks > 0) bank % num_banks else 1;
+
+                        const physical_address = (safe_bank * 0x4000) + offset_in_bank;
+
+                        return self.cartridge.?.rom[physical_address];
+                    },
+
+                    .Other => return 0xFF,
+                }
+            },
             0x8000...0x9FFF => return self.ppu.vram[address - 0x8000],
             0xA000...0xBFFF => return 0xFF, // RAM (TODO Implement MBC With RAM)
             0xC000...0xCFFF => return self.wram[address - 0xC000],
@@ -176,6 +215,7 @@ pub const Bus = struct {
             0xFF17 => return self.apu.nr22,
             0xFF18 => return 0xFF,
             0xFF19 => return self.apu.nr24 | 0xBF,
+            0xFF20 => return 0xFF, // Unused
             0xFF40 => return self.ppu.lcdc,
             0xFF41 => return self.ppu.stat,
             0xFF42 => return self.ppu.scy,
@@ -244,37 +284,6 @@ pub const Bus = struct {
             .DMG0 => "./bios/dmg0.rom",
         };
 
-        const file = std.fs.cwd().openFile(path, .{}) catch return error.BiosNotFound;
-        defer file.close();
-        const rom = file.readToEndAlloc(self.allocator, model.getBiosSize()) catch return error.BiosNotFound;
-        self.bios = rom;
-    }
-
-    fn unloadBios(self: *Bus) void {
-        self.cartridge.allocator.free(self.cartridge.rom);
-    }
-
-    pub fn reloadCartridge(self: *Bus) !void {
-        try self.loadCartridge(self.cartridge.rom_path);
-    }
-
-    pub fn loadCartridge(
-        self: *Bus,
-        path: []const u8,
-    ) error{CartridgeNotFound}!void {
-        const file = std.fs.cwd().openFile(path, .{ .mode = .read_only }) catch return error.CartridgeNotFound;
-        defer file.close();
-        const stat = file.stat() catch @panic("Cannot get file stat\n");
-        var reader = std.fs.File.reader(file, &.{});
-        const rom = reader.interface.readAlloc(self.allocator, @intCast(stat.size)) catch return error.CartridgeNotFound;
-        self.cartridge.rom = rom;
-
-        var cartridge_type = hardware.MBCType.from_byte(rom[constants.CartridgeType]);
-
-        const ram_size = cartridge_type.getRamSize();
-        const ram = self.allocator.alloc(u8, ram_size) catch @panic("Cannot allocate ram: OutOfMemory error\n");
-        self.cartridge.ram = ram;
-        self.cartridge.rom_path = self.allocator.dupe(u8, path) catch @panic("Failed to copy path");
-        self.getCpu().registers.pc = 0;
+        self.bios = std.fs.cwd().readFileAlloc(self.allocator, path, model.getBiosSize()) catch return error.BiosNotFound;
     }
 };

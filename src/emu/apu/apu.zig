@@ -189,28 +189,19 @@ pub const APU = struct {
             const ch1_val: f32 = blk: {
                 if (!self.is_on()) break :blk 0;
                 if (!self.is_ch1_on()) break :blk 0;
-                break :blk if (self.get_ch1_wave_duty()[self.ch1_duty_step]) 0.1 * @as(f32, @floatFromInt(self.ch1_volume)) / 15 else 0;
+                break :blk if (self.get_ch1_wave_duty()[self.ch1_duty_step]) @as(f32, @floatFromInt(self.ch1_volume)) / 15 else 0;
             };
 
             const ch2_val: f32 = blk: {
                 if (!self.is_on()) break :blk 0;
                 if (!self.is_ch2_on()) break :blk 0;
-                break :blk if (self.get_ch2_wave_duty()[self.ch2_duty_step]) 0.1 * @as(f32, @floatFromInt(self.ch2_volume)) / 15 else 0;
+                break :blk if (self.get_ch2_wave_duty()[self.ch2_duty_step]) @as(f32, @floatFromInt(self.ch2_volume)) / 15 else 0;
             };
 
             self.buffer[self.buffer_index] = (ch1_val + ch2_val) / 2;
             self.buffer[self.buffer_index + 1] = (ch1_val + ch2_val) / 2;
             self.buffer_index += 2;
-
-            if (self.buffer_index >= self.buffer.len) {
-                self.push_audio();
-                self.buffer_index = 0;
-            }
         }
-    }
-
-    fn push_audio(self: *APU) void {
-        _ = audio.push(&self.buffer[0], self.buffer.len / 2);
     }
 
     fn is_on(self: *APU) bool {

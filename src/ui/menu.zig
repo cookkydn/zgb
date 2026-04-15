@@ -18,6 +18,10 @@ fn draw_file_menu(app: *AppState) void {
         app.panels.rom_browser.visible = true;
         app.panels.rom_browser.refresh();
     }
+
+    if (ig.igMenuItem("Settings")) {
+        app.panels.settings.visible = true;
+    }
 }
 
 fn draw_controls_menu(app: *AppState) void {
