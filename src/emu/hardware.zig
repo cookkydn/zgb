@@ -3,9 +3,15 @@ const std = @import("std");
 pub const GbModel = enum {
     DMG0,
 
-    pub fn getBiosSize(self: GbModel) usize {
+    pub fn bios_size(self: GbModel) usize {
         return switch (self) {
             .DMG0 => 0x100,
+        };
+    }
+
+    pub fn vram_size(self: @This()) usize {
+        return switch (self) {
+            .DMG0 => 0x2000,
         };
     }
 };

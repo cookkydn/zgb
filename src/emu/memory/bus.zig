@@ -45,15 +45,15 @@ pub const Bus = struct {
         if (self.cartridge) |cartridge| {
             cartridge.deinit();
         }
-        self.ppu.deinit(self.allocator);
+        self.ppu.deinit();
         self.apu.deinit();
         if (self.bios) |bios| {
             self.allocator.free(bios);
         }
     }
 
-    pub fn write_at(self: *Bus, address: u16, value: u8) void {
-        switch (address) {
+    pub fn write_at(self: *Bus, addr: u16, value: u8) void {
+        switch (addr) {
             // -- ROM --
             0x0000...0x1FFF => return,
             0x2000...0x3FFF => {
@@ -65,22 +65,22 @@ pub const Bus = struct {
             },
             0x4000...0x7FFF => return,
             // -- VRAM --
-            0x8000...0x9FFF => self.ppu.vram[address - 0x8000] = value,
+            0x8000...0x9FFF => self.ppu.mem.write_vram(addr, value),
             // -- Cartridge RAM --
             0xA000...0xBFFF => {
                 if (self.cartridge.?.ram.len != 0) {
-                    self.cartridge.?.ram[address - 0xA000] = value;
+                    self.cartridge.?.ram[addr - 0xA000] = value;
                 }
             },
             // -- Work ram --
             0xC000...0xDFFF => {
-                self.wram[address - 0xC000] = value;
+                self.wram[addr - 0xC000] = value;
                 self.invalidate_cache = true;
             },
             // -- Echo ram --
-            0xE000...0xFDFF => self.wram[address - 0xE000] = value,
+            0xE000...0xFDFF => self.wram[addr - 0xE000] = value,
             // -- OAM --
-            0xFE00...0xFE9F => self.ppu.oam[address - 0xFE00] = value,
+            0xFE00...0xFE9F => self.ppu.mem.oam[addr - 0xFE00] = value,
             // -- Not usable --
             0xFEA0...0xFEFF => return,
             // -- Registers --
@@ -88,7 +88,7 @@ pub const Bus = struct {
                 self.joypad.p1_joyp = alu.masked_write(self.joypad.p1_joyp, 0x30, value);
                 self.joypad.update_reg();
             },
-            0xFF01...0xFF02 => self.dumb_registers[address - 0xFF00] = value,
+            0xFF01...0xFF02 => self.dumb_registers[addr - 0xFF00] = value,
             0xFF03 => {}, //unused
             0xFF04 => {
                 self.timer.div = 0;
@@ -121,33 +121,14 @@ pub const Bus = struct {
                 if (value & 0x80 > 0) self.apu.trigger_ch2();
                 self.apu.nr24 = alu.masked_write(self.apu.nr24, 0xC7, value);
             },
-            0xFF1A...0xFF25 => self.apu.audio_registers[address - 0xFF10] = value,
+            0xFF1A...0xFF25 => self.apu.audio_registers[addr - 0xFF10] = value,
             0xFF26 => {
                 if (value & 0x80 == 0) self.apu.turn_off();
 
                 self.apu.nr52 = alu.masked_write(self.apu.nr52, 0x80, value);
             },
-            0xFF27...0xFF3F => self.apu.audio_registers[address - 0xFF10] = value,
-            0xFF40 => self.ppu.lcdc = value,
-            0xFF41 => self.ppu.stat = alu.masked_write(self.ppu.stat, 0x78, value),
-            0xFF42 => self.ppu.scy = value,
-            0xFF43 => self.ppu.scx = value,
-            0xFF44 => {}, // Ly (readonly)
-            0xFF45 => self.ppu.lyc = value,
-            0xFF46 => {
-                self.oam_src = value;
-                const transfer_src: u16 = @as(u16, value) << 8;
-                for (0..0xA0) |i| {
-                    self.ppu.oam[i] = self.read_at(transfer_src + @as(u16, @truncate(i)));
-                }
-                self.timer.tick(640);
-                self.invalidate_cache = true;
-            },
-            0xFF47 => self.ppu.bgp = value,
-            0xFF48 => self.ppu.obp0 = value,
-            0xFF49 => self.ppu.obp1 = value,
-            0xFF4A => self.ppu.window_y = value,
-            0xFF4B => self.ppu.window_x = value,
+            0xFF27...0xFF3F => self.apu.audio_registers[addr - 0xFF10] = value,
+            0xFF40...0xFF4B => self.ppu.mem.write_registers(addr, value),
             0xFF4C => {}, // CGB only
             0xFF4D => {}, // CGB only
             0xFF4E => {}, // unused
@@ -160,7 +141,7 @@ pub const Bus = struct {
             0xFF78...0xFF7F => {}, // Unused
             // -- High ram --
             0xFF80...0xFFFE => {
-                self.hram[address - 0xFF80] = value;
+                self.hram[addr - 0xFF80] = value;
                 self.invalidate_cache = true;
             },
             // -- IE --
@@ -199,12 +180,12 @@ pub const Bus = struct {
                     .Other => return 0xFF,
                 }
             },
-            0x8000...0x9FFF => return self.ppu.vram[address - 0x8000],
+            0x8000...0x9FFF => return self.ppu.mem.read_vram(address),
             0xA000...0xBFFF => return 0xFF, // RAM (TODO Implement MBC With RAM)
             0xC000...0xCFFF => return self.wram[address - 0xC000],
             0xD000...0xDFFF => return self.wram[address - 0xC000],
             0xE000...0xFDFF => return self.wram[address - 0xE000], // ECHO RAM
-            0xFE00...0xFE9F => return self.ppu.oam[address - 0xFE00], // OAM
+            0xFE00...0xFE9F => return self.ppu.mem.oam[address - 0xFE00], // OAM
             0xFEA0...0xFEFF => return 0xFF, // Prohibited
             0xFF00 => return self.joypad.p1_joyp,
             0xFF01 => 0xFF, //TODO Serial
@@ -216,13 +197,7 @@ pub const Bus = struct {
             0xFF18 => return 0xFF,
             0xFF19 => return self.apu.nr24 | 0xBF,
             0xFF20 => return 0xFF, // Unused
-            0xFF40 => return self.ppu.lcdc,
-            0xFF41 => return self.ppu.stat,
-            0xFF42 => return self.ppu.scy,
-            0xFF43 => return self.ppu.scx,
-            0xFF44 => return self.ppu.ly,
-            0xFF46 => return self.oam_src,
-            0xFF47 => return self.ppu.bgp,
+            0xFF40...0xFF4B => return self.ppu.mem.read_registers(address),
             0xFF4D => return 0xFF, // CGB only
             0xFF57...0xFF67 => return 0xFF, // Unused
             0xFF68 => return 0xFF, // CGB only
@@ -284,6 +259,6 @@ pub const Bus = struct {
             .DMG0 => "./bios/dmg0.rom",
         };
 
-        self.bios = std.fs.cwd().readFileAlloc(self.allocator, path, model.getBiosSize()) catch return error.BiosNotFound;
+        self.bios = std.fs.cwd().readFileAlloc(self.allocator, path, model.bios_size()) catch return error.BiosNotFound;
     }
 };

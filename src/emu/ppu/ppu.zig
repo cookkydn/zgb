@@ -7,63 +7,44 @@ const GbModel = @import("../hardware.zig").GbModel;
 const CPU = @import("../cpu/cpu.zig").CPU;
 const Bus = @import("../memory/bus.zig").Bus;
 const Sprite = @import("sprite.zig").Sprite;
+const PPUMem = @import("ppu_mem.zig").PPUMem;
 
 const SCREEN_HEIGHT = constants.SCREEN_HEIGHT;
 const SCREEN_WIDTH = constants.SCREEN_WIDTH;
 
 pub const PPU = struct {
-    /// 0x8000 to 0x9FFF
-    vram: []u8,
-    oam: [0xA0]u8 = .{0} ** 0xA0,
-
-    // Registers
-    lcdc: u8 = 0,
-    stat: u8 = 0,
-    scy: u8 = 0,
-    scx: u8 = 0,
-    ly: u8 = 0,
-    lyc: u8 = 0,
-    window_y: u8 = 0,
-    window_x: u8 = 0,
-
-    bgp: u8 = 0,
-    obp0: u8 = 0,
-    obp1: u8 = 0,
+    mem: PPUMem,
+    allocator: std.mem.Allocator,
 
     frame_buffer: [SCREEN_HEIGHT * SCREEN_WIDTH]u32 = .{0} ** (SCREEN_HEIGHT * SCREEN_WIDTH),
     dots: u16 = 0,
+
+    pub fn init(model: GbModel, allocator: std.mem.Allocator) PPU {
+        return .{
+            .mem = PPUMem.init(model, allocator) catch @panic("Failed to initialize PPU mem"),
+            .allocator = allocator,
+        };
+    }
 
     fn getCpu(self: *PPU) *CPU {
         const bus: *Bus = @alignCast(@fieldParentPtr("ppu", self));
         return @alignCast(@fieldParentPtr("bus", bus));
     }
 
-    pub fn setMode(self: *PPU, mode: Mode) void {
-        self.stat = (self.stat & 0xFC) | @intFromEnum(mode);
+    fn setMode(self: *@This(), mode: Mode) void {
+        self.mem.stat = (self.mem.stat & 0xFC) | @intFromEnum(mode);
     }
 
     pub fn getMode(self: *PPU) Mode {
-        return @enumFromInt(self.stat & 0b11);
+        return @enumFromInt(self.mem.stat & 0b11);
     }
 
-    pub fn init(model: GbModel, allocator: std.mem.Allocator) PPU {
-        const vram_size = switch (model) {
-            .DMG0 => 0x2000,
-        };
-
-        const vram = allocator.alloc(u8, vram_size) catch @panic("Unable to allocate vram: OutOfMemory error\n");
-
-        return .{
-            .vram = vram,
-        };
-    }
-
-    pub fn deinit(self: *PPU, allocator: std.mem.Allocator) void {
-        allocator.free(self.vram);
+    pub fn deinit(self: *PPU) void {
+        self.mem.deinit();
     }
 
     pub fn tick(self: *PPU, cycles: u16) void {
-        if (self.lcdc & 0x80 == 0) return self.turn_off();
+        if (self.mem.lcdc & 0x80 == 0) return self.turn_off();
 
         self.dots += cycles;
 
@@ -82,8 +63,8 @@ pub const PPU = struct {
             .h_blank => {
                 if (self.dots < 204) return;
                 self.dots -= 204;
-                self.ly += 1;
-                if (self.ly == 144) {
+                self.mem.ly += 1;
+                if (self.mem.ly == 144) {
                     self.setMode(.v_blank);
                     self.getCpu().interrupts.request_vblank();
                 } else {
@@ -93,36 +74,36 @@ pub const PPU = struct {
             .v_blank => {
                 if (self.dots < 456) return;
                 self.dots -= 456;
-                self.ly += 1;
+                self.mem.ly += 1;
 
-                if (self.ly <= 153) return;
-                self.ly = 0;
+                if (self.mem.ly <= 153) return;
+                self.mem.ly = 0;
                 self.setMode(.oam_scan);
             },
         }
     }
 
     fn renderScanLine(self: *PPU) void {
-        const absolute_y: u16 = (@as(u16, self.ly) + @as(u16, self.scy)) % 256;
+        const absolute_y: u16 = (@as(u16, self.mem.ly) + @as(u16, self.mem.scy)) % 256;
         const tile_y: u16 = absolute_y / 8;
         const offset_y: u16 = absolute_y % 8;
         for (0..SCREEN_WIDTH) |x| {
-            const absolute_x: u16 = (@as(u16, @truncate(x)) + @as(u16, self.scx)) % 256;
+            const absolute_x: u16 = (@as(u16, @truncate(x)) + @as(u16, self.mem.scx)) % 256;
             const tile_x: u16 = absolute_x / 8;
             const offset_x: u16 = absolute_x % 8;
 
             const tile_addr = self.getBGTileMapArea() + (tile_y * 32) + tile_x;
-            const tile_index = self.vram[tile_addr - 0x8000];
+            const tile_index = self.mem.vram[tile_addr - 0x8000];
             const pixel_data = self.getBackgroundPixelData(tile_index, offset_x, offset_y);
             const pixel_color = self.getColorByBgPalette(pixel_data);
-            self.putPixel(x, self.ly, pixel_color);
+            self.putPixel(x, self.mem.ly, pixel_color);
         }
-        if (self.lcdc & 0x02 > 0) {
+        if (self.mem.lcdc & 0x02 > 0) {
             for (0..40) |i| {
-                const sprite = Sprite.from_oam(self.oam[i * 4 .. (i * 4) + 4][0..4]);
-                if (sprite.y_pos > self.ly + 8 and sprite.y_pos <= self.ly + 16) {
-                    const lsb = self.vram[@as(u16, sprite.tile_index) * 16 + (if (sprite.flags.y_flip) 8 - (self.ly - (sprite.y_pos - 16)) else self.ly - (sprite.y_pos - 16)) * 2];
-                    const msb = self.vram[@as(u16, sprite.tile_index) * 16 + (if (sprite.flags.y_flip) 8 - (self.ly - (sprite.y_pos - 16)) else self.ly - (sprite.y_pos - 16)) * 2 + 1];
+                const sprite = Sprite.from_oam(self.mem.oam[i * 4 .. (i * 4) + 4][0..4]);
+                if (sprite.y_pos > self.mem.ly + 8 and sprite.y_pos <= self.mem.ly + 16) {
+                    const lsb = self.mem.vram[@as(u16, sprite.tile_index) * 16 + (if (sprite.flags.y_flip) 8 - (self.mem.ly - (sprite.y_pos - 16)) else self.mem.ly - (sprite.y_pos - 16)) * 2];
+                    const msb = self.mem.vram[@as(u16, sprite.tile_index) * 16 + (if (sprite.flags.y_flip) 8 - (self.mem.ly - (sprite.y_pos - 16)) else self.mem.ly - (sprite.y_pos - 16)) * 2 + 1];
                     for (0..8) |j| {
                         const bit_index: u3 = if (sprite.flags.x_flip) @truncate(j) else @truncate(7 - j);
                         const lsb_bit = (lsb >> bit_index) & 1;
@@ -130,7 +111,7 @@ pub const PPU = struct {
                         const color_index = @as(u2, @truncate((msb_bit << 1) | lsb_bit));
                         const color = self.getColorByObjPalette(color_index, sprite.flags.dmg_palette);
                         if (color_index != 0) {
-                            self.putPixel(sprite.x_pos - 8 + j, self.ly, color);
+                            self.putPixel(sprite.x_pos - 8 + j, self.mem.ly, color);
                         }
                     }
                 }
@@ -153,8 +134,8 @@ pub const PPU = struct {
 
         const vram_offset = tile_addr - 0x8000;
 
-        const lsb = self.vram[vram_offset + (y * 2)];
-        const msb = self.vram[vram_offset + (y * 2) + 1];
+        const lsb = self.mem.vram[vram_offset + (y * 2)];
+        const msb = self.mem.vram[vram_offset + (y * 2) + 1];
 
         const bit_index: u3 = @truncate(7 - x);
         const lsb_bit = (lsb >> bit_index) & 1;
@@ -179,35 +160,35 @@ pub const PPU = struct {
     }
 
     inline fn getBGTileMapArea(self: *PPU) u16 {
-        return if (self.lcdc & 8 > 0) 0x9C00 else 0x9800;
+        return if (self.mem.lcdc & 8 > 0) 0x9C00 else 0x9800;
     }
 
     inline fn getAddressingMode(self: *PPU) AddressingMode {
-        return if (self.lcdc & 16 > 0) .UNSIGNED else .SIGNED;
+        return if (self.mem.lcdc & 16 > 0) .UNSIGNED else .SIGNED;
     }
 
     inline fn getColorByBgPalette(self: *PPU, color_id: u2) u2 {
         return switch (color_id) {
-            0 => @truncate((self.bgp & 0x03)),
-            1 => @truncate((self.bgp & 0x0C) >> 2),
-            2 => @truncate((self.bgp & 0x30) >> 4),
-            3 => @truncate((self.bgp & 0xC0) >> 6),
+            0 => @truncate((self.mem.bgp & 0x03)),
+            1 => @truncate((self.mem.bgp & 0x0C) >> 2),
+            2 => @truncate((self.mem.bgp & 0x30) >> 4),
+            3 => @truncate((self.mem.bgp & 0xC0) >> 6),
         };
     }
 
     inline fn getColorByObjPalette(self: *PPU, color_id: u2, obp: u1) u2 {
         return switch (obp) {
             0 => switch (color_id) {
-                0 => @truncate((self.obp0 & 0x03)),
-                1 => @truncate((self.obp0 & 0x0C) >> 2),
-                2 => @truncate((self.obp0 & 0x30) >> 4),
-                3 => @truncate((self.obp0 & 0xC0) >> 6),
+                0 => @truncate((self.mem.obp0 & 0x03)),
+                1 => @truncate((self.mem.obp0 & 0x0C) >> 2),
+                2 => @truncate((self.mem.obp0 & 0x30) >> 4),
+                3 => @truncate((self.mem.obp0 & 0xC0) >> 6),
             },
             1 => switch (color_id) {
-                0 => @truncate((self.obp1 & 0x03)),
-                1 => @truncate((self.obp1 & 0x0C) >> 2),
-                2 => @truncate((self.obp1 & 0x30) >> 4),
-                3 => @truncate((self.obp1 & 0xC0) >> 6),
+                0 => @truncate((self.mem.obp1 & 0x03)),
+                1 => @truncate((self.mem.obp1 & 0x0C) >> 2),
+                2 => @truncate((self.mem.obp1 & 0x30) >> 4),
+                3 => @truncate((self.mem.obp1 & 0xC0) >> 6),
             },
         };
     }
@@ -215,7 +196,7 @@ pub const PPU = struct {
     pub fn turn_off(self: *PPU) void {
         if (self.frame_buffer[0] == constants.ARGB_COLOR_PALETTE.WHITE_OFF) return;
         self.setMode(Mode.h_blank);
-        self.ly = 0;
+        self.mem.ly = 0;
 
         for (0..SCREEN_HEIGHT * SCREEN_WIDTH) |i| {
             self.frame_buffer[i] = constants.ARGB_COLOR_PALETTE.WHITE_OFF;
