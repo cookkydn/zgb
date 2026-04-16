@@ -13,7 +13,7 @@ pub const Cartridge = struct {
     ram_bank: u5 = 1,
     mode: u1 = 0,
 
-    pub fn from_file(filename: []const u8, allocator: Allocator) error{ CartridgeNotFound, CartridgeTooBig }!Cartridge {
+    pub fn fromFile(filename: []const u8, allocator: Allocator) error{ CartridgeNotFound, CartridgeTooBig }!Cartridge {
         const file = std.fs.cwd().openFile(filename, .{
             .mode = .read_only,
         }) catch return error.CartridgeNotFound;
@@ -26,7 +26,7 @@ pub const Cartridge = struct {
         std.debug.assert(content.len >= 0x8000);
 
         const title = content[0x0134..0x0143];
-        const mbc_type = MBCType.from_byte(content[0x147]);
+        const mbc_type = MBCType.fromByte(content[0x147]);
         // unused
         // const rom_size: usize = 32768 * (1 << content[0x148]);
         const ram_size: usize = switch (content[0x149]) {

@@ -14,7 +14,7 @@ pub const Timer = struct {
         return .{};
     }
 
-    fn get_cpu(self: *Timer) *CPU {
+    fn getCPU(self: *Timer) *CPU {
         const bus: *Bus = @alignCast(@fieldParentPtr("timer", self));
         return @alignCast(@fieldParentPtr("bus", bus));
     }
@@ -36,7 +36,7 @@ pub const Timer = struct {
 
                 if (self.tima == 255) {
                     self.tima = self.tma;
-                    self.get_cpu().interrupts.request_timer();
+                    self.getCPU().interrupts.request_timer();
                 } else {
                     self.tima += 1;
                 }

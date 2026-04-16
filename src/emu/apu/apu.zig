@@ -1,7 +1,5 @@
-const sokol = @import("sokol");
-const audio = sokol.audio;
-const std = @import("std");
 const constants = @import("../const.zig");
+const std = @import("std");
 
 // Audio processing unig
 pub const APU = struct {
@@ -181,10 +179,10 @@ pub const APU = struct {
             self.ch2_duty_step = (self.ch2_duty_step + 1) % 8;
         }
 
-        self.sample_counter += @as(u32, ticks) * constants.SAMPLE_RATE;
+        self.sample_counter += @as(u32, ticks) * constants.sample_rate;
 
-        while (self.sample_counter >= constants.CPU_FREQ) {
-            self.sample_counter -= constants.CPU_FREQ;
+        while (self.sample_counter >= constants.cpu_freq) {
+            self.sample_counter -= constants.cpu_freq;
 
             const ch1_val: f32 = blk: {
                 if (!self.is_on()) break :blk 0;

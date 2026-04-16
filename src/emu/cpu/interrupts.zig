@@ -32,27 +32,27 @@ pub const Interrupts = struct {
         if (self.IF & self.IE & V_BLANK_MASK != 0) {
             self.get_cpu().state.ime = .DISABLED;
             self.IF &= ~V_BLANK_MASK;
-            cycles = self.get_cpu().execute_instruction(.{ .call_imm16 = .{ .imm16 = constants.V_BLANK_SRC } });
+            cycles = self.get_cpu().execute_instruction(.{ .call_imm16 = .{ .imm16 = constants.v_blank_src } });
             cycles += 8;
         } else if (self.IF & self.IE & STAT_MASK != 0) {
             self.get_cpu().state.ime = .DISABLED;
             self.IF &= ~STAT_MASK;
-            cycles = self.get_cpu().execute_instruction(.{ .call_imm16 = .{ .imm16 = constants.STAT_SRC } });
+            cycles = self.get_cpu().execute_instruction(.{ .call_imm16 = .{ .imm16 = constants.stat_src } });
             cycles += 8;
         } else if (self.IF & self.IE & TIMER_MASK != 0) {
             self.get_cpu().state.ime = .DISABLED;
             self.IF &= ~TIMER_MASK;
-            cycles = self.get_cpu().execute_instruction(.{ .call_imm16 = .{ .imm16 = constants.TIMER_SRC } });
+            cycles = self.get_cpu().execute_instruction(.{ .call_imm16 = .{ .imm16 = constants.timer_src } });
             cycles += 8;
         } else if (self.IF & self.IE & SERIAL_MASK != 0) {
             self.get_cpu().state.ime = .DISABLED;
             self.IF &= ~SERIAL_MASK;
-            cycles = self.get_cpu().execute_instruction(.{ .call_imm16 = .{ .imm16 = constants.SERIAL_SRC } });
+            cycles = self.get_cpu().execute_instruction(.{ .call_imm16 = .{ .imm16 = constants.serial_src } });
             cycles += 8;
         } else if (self.IF & self.IE & JOYPAD_MASK != 0) {
             self.get_cpu().state.ime = .DISABLED;
             self.IF &= ~JOYPAD_MASK;
-            cycles = self.get_cpu().execute_instruction(.{ .call_imm16 = .{ .imm16 = constants.JOYPAD_SRC } });
+            cycles = self.get_cpu().execute_instruction(.{ .call_imm16 = .{ .imm16 = constants.joypad_src } });
             cycles += 8;
         }
         self.get_cpu().bus.timer.tick(cycles);

@@ -5,10 +5,10 @@ const Texture = @import("ui/texture.zig").Texture;
 const LayoutManager = @import("ui/layout.zig").LayoutManager;
 const RomBrowser = @import("panels/rom-browser.zig").RomBrowser;
 const SettingsPanel = @import("panels/settings.zig").SettingsPanel;
-const Menu = @import("ui/menu.zig");
+const menu = @import("ui/menu.zig");
 
-const std = @import("std");
 const builtin = @import("builtin");
+const std = @import("std");
 const Allocator = std.mem.Allocator;
 
 // -- Sokol imports --
@@ -47,7 +47,7 @@ pub const AppState = struct {
         };
     }
 
-    pub fn init_sokol(self: *AppState) void {
+    pub fn initSokol(self: *AppState) void {
         sg.setup(.{
             .environment = sglue.environment(),
             .logger = .{ .func = slog.func },
@@ -94,18 +94,18 @@ pub const AppState = struct {
             .delta_time = sapp.frameDuration(),
             .dpi_scale = sapp.dpiScale(),
         });
-        Menu.draw_menu(self);
-        self.emu.frame_emu();
-        self.layout.update_layout();
-        self.emu.draw_screen();
-        self.panels.draw_panels();
+        menu.draw_menu(self);
+        self.emu.frameEmu();
+        self.layout.updateLayout();
+        self.emu.drawScreen();
+        self.panels.drawPanels();
         self.gfx.render();
     }
 
     pub fn event(self: *AppState, ev: Event) void {
         _ = simgui.handleEvent(ev.*);
         if (ig.igGetIO().*.WantCaptureKeyboard) return;
-        self.emu.cpu.bus.joypad.handle_event(ev);
+        self.emu.cpu.bus.joypad.handleEvent(ev);
     }
 };
 
@@ -144,18 +144,18 @@ pub const EmuState = struct {
     cycle_acc: f64 = 0,
     volume: f32 = 0.1,
 
-    const CPU_FREQ = 4194304.0;
+    const cpu_freq = 4194304.0;
 
     pub fn init() EmuState {
-        return .{ .cpu = emu.CPU.init(.DMG0) };
+        return .{ .cpu = emu.CPU.init(.dmg_0) };
     }
 
     pub fn deinit(self: *EmuState) void {
         self.cpu.deinit();
     }
 
-    pub fn draw_screen(emu_state: *EmuState) void {
-        var app = get_app(emu_state, "emu");
+    pub fn drawScreen(emu_state: *EmuState) void {
+        var app = getApp(emu_state, "emu");
         app.gfx.screen_tex.update(&app.emu.cpu.bus.ppu.frame_buffer);
 
         if (ig.igBegin(LayoutManager.Panels.screen, null, ig.ImGuiWindowFlags_None)) {
@@ -181,7 +181,7 @@ pub const EmuState = struct {
         ig.igEnd();
     }
 
-    pub fn push_sound(self: *EmuState) void {
+    pub fn pushSound(self: *EmuState) void {
         const apu = &self.cpu.bus.apu;
         if (apu.buffer_index >= apu.buffer.len) {
             apu.buffer_index = 0;
@@ -192,10 +192,10 @@ pub const EmuState = struct {
         }
     }
 
-    pub fn frame_emu(self: *EmuState) void {
+    pub fn frameEmu(self: *EmuState) void {
         if (!self.pause) {
-            self.cycle_acc += sapp.frameDuration() * CPU_FREQ;
-            if (self.cycle_acc > CPU_FREQ / 10.0) {
+            self.cycle_acc += sapp.frameDuration() * cpu_freq;
+            if (self.cycle_acc > cpu_freq / 10.0) {
                 self.cycle_acc /= 10;
                 if (self.is_overloaded == false) {
                     self.overload_count += 1;
@@ -213,14 +213,14 @@ pub const EmuState = struct {
                 self.cpu.bus.ppu.tick(cycles_taken);
                 self.cpu.bus.timer.tick(cycles_taken);
                 self.cpu.bus.apu.tick(cycles_taken);
-                self.push_sound();
+                self.pushSound();
                 self.cpu.interrupts.handle_interrupts();
                 self.cycle_acc -= @floatFromInt(cycles_taken);
             }
         }
     }
 
-    pub fn print_debug_info(self: EmuState) void {
+    pub fn printDebugInfo(self: EmuState) void {
         const print = std.debug.print;
         print("====== DEBUG REPORT ======\n", .{});
         if (self.cpu.bus.cartridge) |cartridge| {
@@ -251,7 +251,7 @@ pub const LayoutState = struct {
         };
     }
 
-    pub fn update_layout(self: *LayoutState) void {
+    pub fn updateLayout(self: *LayoutState) void {
         const app: *AppState = @alignCast(@fieldParentPtr("layout", self));
         const viewport = ig.igGetMainViewport();
         const dockspace_id = ig.igGetID("dockspace");
@@ -278,13 +278,13 @@ pub const PanelsState = struct {
         self.rom_browser.deinit();
     }
 
-    pub fn draw_panels(self: *PanelsState) void {
-        const app = get_app(self, "panels");
+    pub fn drawPanels(self: *PanelsState) void {
+        const app = getApp(self, "panels");
         self.rom_browser.draw(app);
         self.settings.draw(app);
     }
 };
 
-inline fn get_app(self: anytype, comptime field_name: []const u8) *AppState {
+inline fn getApp(self: anytype, comptime field_name: []const u8) *AppState {
     return @alignCast(@fieldParentPtr(field_name, self));
 }

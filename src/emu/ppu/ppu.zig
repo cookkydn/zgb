@@ -1,7 +1,6 @@
 // Pixel processing unit
-const std = @import("std");
 const constants = @import("../const.zig");
-const alu = @import("../cpu/arithmetics.zig");
+const std = @import("std");
 
 const GbModel = @import("../hardware.zig").GbModel;
 const CPU = @import("../cpu/cpu.zig").CPU;
@@ -9,8 +8,8 @@ const Bus = @import("../memory/bus.zig").Bus;
 const Sprite = @import("sprite.zig").Sprite;
 const PPUMem = @import("ppu_mem.zig").PPUMem;
 
-const SCREEN_HEIGHT = constants.SCREEN_HEIGHT;
-const SCREEN_WIDTH = constants.SCREEN_WIDTH;
+const SCREEN_HEIGHT = constants.screen_height;
+const SCREEN_WIDTH = constants.screen_width;
 
 pub const PPU = struct {
     mem: PPUMem,
@@ -100,7 +99,7 @@ pub const PPU = struct {
         }
         if (self.mem.lcdc & 0x02 > 0) {
             for (0..40) |i| {
-                const sprite = Sprite.from_oam(self.mem.oam[i * 4 .. (i * 4) + 4][0..4]);
+                const sprite = Sprite.fromOAM(self.mem.oam[i * 4 .. (i * 4) + 4][0..4]);
                 if (sprite.y_pos > self.mem.ly + 8 and sprite.y_pos <= self.mem.ly + 16) {
                     const lsb = self.mem.vram[@as(u16, sprite.tile_index) * 16 + (if (sprite.flags.y_flip) 8 - (self.mem.ly - (sprite.y_pos - 16)) else self.mem.ly - (sprite.y_pos - 16)) * 2];
                     const msb = self.mem.vram[@as(u16, sprite.tile_index) * 16 + (if (sprite.flags.y_flip) 8 - (self.mem.ly - (sprite.y_pos - 16)) else self.mem.ly - (sprite.y_pos - 16)) * 2 + 1];
@@ -150,10 +149,10 @@ pub const PPU = struct {
         const index = (y * SCREEN_WIDTH) + x;
 
         const color_argb: u32 = switch (color_id) {
-            0 => constants.ARGB_COLOR_PALETTE.WHITE,
-            1 => constants.ARGB_COLOR_PALETTE.LIGHT_GRAY,
-            2 => constants.ARGB_COLOR_PALETTE.DARK_GRAY,
-            3 => constants.ARGB_COLOR_PALETTE.BLACK,
+            0 => constants.argb_color_palette.white,
+            1 => constants.argb_color_palette.light_gray,
+            2 => constants.argb_color_palette.dark_gray,
+            3 => constants.argb_color_palette.black,
         };
 
         self.frame_buffer[index] = color_argb;
@@ -194,20 +193,20 @@ pub const PPU = struct {
     }
 
     pub fn turn_off(self: *PPU) void {
-        if (self.frame_buffer[0] == constants.ARGB_COLOR_PALETTE.WHITE_OFF) return;
+        if (self.frame_buffer[0] == constants.argb_color_palette.white_off) return;
         self.setMode(Mode.h_blank);
         self.mem.ly = 0;
 
         for (0..SCREEN_HEIGHT * SCREEN_WIDTH) |i| {
-            self.frame_buffer[i] = constants.ARGB_COLOR_PALETTE.WHITE_OFF;
+            self.frame_buffer[i] = constants.argb_color_palette.white_off;
         }
     }
 
     pub const Mode = enum(u2) {
-        h_blank = 0,
-        v_blank = 1,
-        oam_scan = 2,
         drawing = 3,
+        h_blank = 0,
+        oam_scan = 2,
+        v_blank = 1,
     };
 
     const AddressingMode = enum { SIGNED, UNSIGNED };

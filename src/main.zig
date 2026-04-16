@@ -12,9 +12,9 @@ pub fn main() void {
     app_ref = &app;
     sapp.run(.{
         .init_userdata_cb = init,
-        .frame_userdata_cb = app_wrapper("frame", null),
-        .cleanup_userdata_cb = app_wrapper("deinit", null),
-        .event_userdata_cb = app_wrapper("event", AppState.Event),
+        .frame_userdata_cb = appWrapper("frame", null),
+        .cleanup_userdata_cb = appWrapper("deinit", null),
+        .event_userdata_cb = appWrapper("event", AppState.Event),
         .window_title = "ZGB",
         .width = 1440,
         .height = 900,
@@ -30,13 +30,13 @@ pub fn main() void {
 
 export fn init(user_data: ?*anyopaque) void {
     const app: *AppState = @ptrCast(@alignCast(user_data.?));
-    app.init_sokol();
+    app.initSokol();
 }
 
 pub const panic = std.debug.FullPanic(crash);
 
 pub fn crash(msg: []const u8, first_trace_addr: ?usize) noreturn {
-    app_ref.emu.print_debug_info();
+    app_ref.emu.PrintDebugInfo();
     std.debug.defaultPanic(msg, first_trace_addr);
 }
 
@@ -48,7 +48,7 @@ fn GetCallbackType(comptime OptArgType: ?type) type {
     }
 }
 
-pub fn app_wrapper(comptime method_name: []const u8, comptime OptArgType: ?type) GetCallbackType(OptArgType) {
+pub fn appWrapper(comptime method_name: []const u8, comptime OptArgType: ?type) GetCallbackType(OptArgType) {
     if (OptArgType) |ArgType| {
         return struct {
             pub fn cb(arg: ArgType, user_data: ?*anyopaque) callconv(.c) void {

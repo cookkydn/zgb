@@ -3,8 +3,8 @@ const Build = std.Build;
 const OptimizeMode = std.builtin.OptimizeMode;
 const ResolvedTarget = Build.ResolvedTarget;
 const Dependency = Build.Dependency;
-const sokol = @import("sokol");
 const cimgui = @import("cimgui");
+const zlinter = @import("zlinter");
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
@@ -32,6 +32,33 @@ pub fn build(b: *std.Build) void {
             .{ .name = "sokol", .module = dep_sokol.module("sokol") },
             .{ .name = "cimgui", .module = dep_cimgui.module(cimgui_conf.module_name) },
         },
+    });
+
+    const lint_cmd = b.step("lint", "Lint source code.");
+    lint_cmd.dependOn(step: {
+        // Swap in and out whatever rules you see fit from RULES.md
+        var builder = zlinter.builder(b, .{ .optimize = .ReleaseFast });
+        builder.addRule(.{
+            .builtin = .field_naming,
+        }, .{
+            .struct_field_min_len = .{ .len = 1, .severity = .warning },
+            .union_field_min_len = .{ .len = 1, .severity = .warning },
+            .enum_field_min_len = .{ .len = 1, .severity = .warning },
+        });
+        builder.addRule(.{ .builtin = .field_ordering }, .{});
+        builder.addRule(.{
+            .builtin = .declaration_naming,
+        }, .{
+            .decl_name_min_len = .{ .len = 1, .severity = .warning },
+        });
+        builder.addRule(.{ .builtin = .function_naming }, .{});
+        builder.addRule(.{ .builtin = .file_naming }, .{});
+        builder.addRule(.{ .builtin = .import_ordering }, .{});
+        builder.addRule(.{ .builtin = .switch_case_ordering }, .{});
+        builder.addRule(.{ .builtin = .no_unused }, .{});
+        builder.addRule(.{ .builtin = .no_deprecated }, .{});
+        builder.addRule(.{ .builtin = .no_orelse_unreachable }, .{});
+        break :step builder.build();
     });
 
     const mod_options = b.addOptions();

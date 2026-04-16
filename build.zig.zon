@@ -12,6 +12,10 @@
             .url = "git+https://github.com/floooh/dcimgui.git#086439ad8d4c8423510ce2c4a159536454883501",
             .hash = "cimgui-0.1.0-44ClkaTclwDXw6Lt2PIKs7YX-d1mu80kEkfyJiCBKM4R",
         },
+        .zlinter = .{
+            .url = "git+https://github.com/kurtwagner/zlinter?ref=0.15.x#bd25a4ddffdb9afb542280b876c25a366faa38d8",
+            .hash = "zlinter-0.0.1-OjQ08ZOnCwBx9meqm2cUjOkYUBeTUpKhQ3ERnVPg6ARc",
+        },
     },
     .paths = .{
         "build.zig",

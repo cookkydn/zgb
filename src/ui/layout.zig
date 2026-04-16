@@ -11,8 +11,8 @@ pub const LayoutManager = struct {
     };
 
     pub const LayoutType = enum {
-        None,
         Default,
+        None,
     };
 
     pub fn applyLayout(dockspace_id: ig.ImGuiID, layout_type: LayoutType, app: *AppState) void {

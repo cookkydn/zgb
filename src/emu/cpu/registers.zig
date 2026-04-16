@@ -14,11 +14,11 @@ pub const Registers = struct {
     sp: u16,
     pc: u16,
 
-    fn get_cpu(self: *Registers) *CPU {
+    fn getCPU(self: *Registers) *CPU {
         return @alignCast(@fieldParentPtr("registers", self));
     }
 
-    pub fn set_af(self: *Registers, value: u16) void {
+    pub fn setAF(self: *Registers, value: u16) void {
         self.a = @truncate((value & 0xFF00) >> 8);
         self.f.z = value & 0b10000000 != 0;
         self.f.n = value & 0b01000000 != 0;
@@ -26,46 +26,46 @@ pub const Registers = struct {
         self.f.c = value & 0b00010000 != 0;
     }
 
-    pub fn get_af(self: Registers) u16 {
-        return @as(u16, self.a) << 8 | self.f.get_f();
+    pub fn getAF(self: Registers) u16 {
+        return @as(u16, self.a) << 8 | self.f.getF();
     }
 
-    pub fn set_bc(self: *Registers, value: u16) void {
+    pub fn setBC(self: *Registers, value: u16) void {
         self.b = @truncate(value >> 8);
         self.c = @truncate(value & 0xFF);
     }
 
-    pub fn get_bc(self: Registers) u16 {
+    pub fn getBC(self: Registers) u16 {
         return @as(u16, self.b) << 8 | @as(u16, self.c);
     }
 
-    pub fn set_de(self: *Registers, value: u16) void {
+    pub fn setDE(self: *Registers, value: u16) void {
         self.d = @truncate(value >> 8);
         self.e = @truncate(value & 0xFF);
     }
 
-    pub fn get_de(self: Registers) u16 {
+    pub fn getDE(self: Registers) u16 {
         return @as(u16, self.d) << 8 | @as(u16, self.e);
     }
 
-    pub fn set_hl(self: *Registers, value: u16) void {
+    pub fn setHL(self: *Registers, value: u16) void {
         self.h = @truncate(value >> 8);
         self.l = @truncate(value & 0xFF);
     }
 
-    pub fn get_hl(self: Registers) u16 {
+    pub fn getHL(self: Registers) u16 {
         return @as(u16, self.h) << 8 | @as(u16, self.l);
     }
 
-    pub fn clear_flags(self: *Registers) void {
+    pub fn clearFlags(self: *Registers) void {
         self.f.c = false;
         self.f.h = false;
         self.f.n = false;
         self.f.z = false;
     }
 
-    pub fn load_r8(self: *Registers, r8: instr.R8) u8 {
-        var mem = &self.get_cpu().bus;
+    pub fn loadR8(self: *Registers, r8: instr.R8) u8 {
+        var mem = &self.getCPU().bus;
         switch (r8) {
             .b => {
                 return self.b;
@@ -86,7 +86,7 @@ pub const Registers = struct {
                 return self.l;
             },
             .hl => {
-                return mem.read_at(self.get_hl());
+                return mem.read_at(self.getHL());
             },
             .a => {
                 return self.a;
@@ -94,47 +94,47 @@ pub const Registers = struct {
         }
     }
 
-    pub fn load_r16(self: *Registers, r16: union(enum) {
-        R16: instr.R16,
-        R16Mem: instr.R16Mem,
-        R16Stk: instr.R16Stk,
+    pub fn loadR16(self: *Registers, r16: union(enum) {
+        r16: instr.R16,
+        r16_mem: instr.R16Mem,
+        r16_stk: instr.R16Stk,
     }) u16 {
         switch (r16) {
-            .R16 => |r16_| {
+            .r16 => |r16_| {
                 switch (r16_) {
-                    .bc => return self.get_bc(),
-                    .de => return self.get_de(),
-                    .hl => return self.get_hl(),
+                    .bc => return self.getBC(),
+                    .de => return self.getDE(),
+                    .hl => return self.getHL(),
                     .sp => return self.sp,
                 }
             },
-            .R16Mem => |r16mem| {
+            .r16_mem => |r16mem| {
                 switch (r16mem) {
-                    .bc => return self.get_bc(),
-                    .de => return self.get_de(),
+                    .bc => return self.getBC(),
+                    .de => return self.getDE(),
                     .hli => {
-                        self.set_hl(self.get_hl() +% 1);
-                        return self.get_hl() -% 1;
+                        self.setHL(self.getHL() +% 1);
+                        return self.getHL() -% 1;
                     },
                     .hld => {
-                        self.set_hl(self.get_hl() -% 1);
-                        return self.get_hl() +% 1;
+                        self.setHL(self.getHL() -% 1);
+                        return self.getHL() +% 1;
                     },
                 }
             },
-            .R16Stk => |r16stk| {
+            .r16_stk => |r16stk| {
                 switch (r16stk) {
-                    .bc => return self.get_bc(),
-                    .de => return self.get_de(),
-                    .hl => return self.get_hl(),
-                    .af => return self.get_af(),
+                    .bc => return self.getBC(),
+                    .de => return self.getDE(),
+                    .hl => return self.getHL(),
+                    .af => return self.getAF(),
                 }
             },
         }
     }
 
-    pub fn set_r8(self: *Registers, r8: instr.R8, value: u8) void {
-        var mem = &self.get_cpu().bus;
+    pub fn setR8(self: *Registers, r8: instr.R8, value: u8) void {
+        var mem = &self.getCPU().bus;
         switch (r8) {
             .b => self.b = value,
             .c => self.c = value,
@@ -142,39 +142,39 @@ pub const Registers = struct {
             .e => self.e = value,
             .h => self.h = value,
             .l => self.l = value,
-            .hl => mem.write_at(self.get_hl(), value),
+            .hl => mem.write_at(self.getHL(), value),
             .a => self.a = value,
         }
     }
 
-    pub fn set_r16(self: *Registers, r16: union(enum) {
-        R16: instr.R16,
-        R16Mem: instr.R16Mem,
-        R16Stk: instr.R16Stk,
+    pub fn setR16(self: *Registers, r16: union(enum) {
+        r16: instr.R16,
+        r16_mem: instr.R16Mem,
+        r16_stk: instr.R16Stk,
     }, value: u16) void {
         switch (r16) {
-            .R16 => |r16_| {
+            .r16 => |r16_| {
                 switch (r16_) {
-                    .bc => self.set_bc(value),
-                    .de => self.set_de(value),
-                    .hl => self.set_hl(value),
+                    .bc => self.setBC(value),
+                    .de => self.setDE(value),
+                    .hl => self.setHL(value),
                     .sp => self.sp = value,
                 }
             },
-            .R16Mem => |r16mem| {
+            .r16_mem => |r16mem| {
                 switch (r16mem) {
-                    .bc => self.set_bc(value),
-                    .de => self.set_de(value),
-                    .hli => self.set_hl(value + 1),
-                    .hld => self.set_hl(value - 1),
+                    .bc => self.setBC(value),
+                    .de => self.setDE(value),
+                    .hli => self.setHL(value + 1),
+                    .hld => self.setHL(value - 1),
                 }
             },
-            .R16Stk => |r16stk| {
+            .r16_stk => |r16stk| {
                 switch (r16stk) {
-                    .bc => self.set_bc(value),
-                    .de => self.set_de(value),
-                    .hl => self.set_hl(value),
-                    .af => self.set_af(value),
+                    .bc => self.setBC(value),
+                    .de => self.setDE(value),
+                    .hl => self.setHL(value),
+                    .af => self.setAF(value),
                 }
             },
         }
@@ -201,7 +201,7 @@ const Flags = struct {
     n: bool,
     h: bool,
     c: bool,
-    pub fn get_f(self: Flags) u16 {
+    pub fn getF(self: Flags) u16 {
         const z = @as(u8, @intFromBool(self.z)) << 7;
         const n = @as(u8, @intFromBool(self.n)) << 6;
         const h = @as(u8, @intFromBool(self.h)) << 5;
@@ -209,7 +209,7 @@ const Flags = struct {
         return @as(u16, z | n | h | c);
     }
 
-    pub fn check_cc(self: Flags, cc: instr.Cond) bool {
+    pub fn checkCond(self: Flags, cc: instr.Cond) bool {
         switch (cc) {
             .nz => return !self.z,
             .z => return self.z,

@@ -3,7 +3,6 @@ const Cpu = @import("../emu/root.zig").CPU;
 const ig = @import("cimgui");
 const sokol = @import("sokol");
 const sg = sokol.gfx;
-const sapp = sokol.app;
 const std = @import("std");
 
 const NO_FLAG = ig.ImGuiWindowFlags_None;

@@ -1,5 +1,5 @@
-const std = @import("std");
 const ig = @import("cimgui");
+const std = @import("std");
 const AppState = @import("../app.zig").AppState;
 const Cartridge = @import("../emu/memory/cartridge.zig").Cartridge;
 
@@ -28,10 +28,10 @@ pub const RomBrowser = struct {
     fn clearFiles(self: *RomBrowser) void {
         for (self.files.items) |entry| {
             switch (entry) {
-                .File => |file| {
+                .file => |file| {
                     self.allocator.free(file);
                 },
-                .Directory => |dir| {
+                .dir => |dir| {
                     self.allocator.free(dir);
                 },
             }
@@ -55,13 +55,13 @@ pub const RomBrowser = struct {
 
                 if (std.mem.endsWith(u8, name, ".gb") or std.mem.endsWith(u8, name, ".gbc") or std.mem.endsWith(u8, name, ".rom")) {
                     if (self.allocator.dupeZ(u8, name)) |name_z| {
-                        self.files.append(self.allocator, .{ .File = name_z }) catch {};
+                        self.files.append(self.allocator, .{ .file = name_z }) catch {};
                     } else |_| {}
                 }
             } else if (entry.kind == .directory) {
                 const name = entry.name;
                 if (self.allocator.dupeZ(u8, name)) |name_z| {
-                    self.files.append(self.allocator, .{ .Directory = name_z }) catch {};
+                    self.files.append(self.allocator, .{ .dir = name_z }) catch {};
                 } else |_| {}
             }
         }
@@ -88,7 +88,7 @@ pub const RomBrowser = struct {
                 var need_refresh = false;
                 for (self.files.items, 0..) |entry, i| {
                     switch (entry) {
-                        .File => |file| {
+                        .file => |file| {
                             const is_selected = (self.selected_idx != null and self.selected_idx.? == i);
 
                             if (ig.igSelectableEx(file.ptr, is_selected, ig.ImGuiSelectableFlags_AllowDoubleClick, .{ .x = 0, .y = 0 })) {
@@ -99,7 +99,7 @@ pub const RomBrowser = struct {
                                 }
                             }
                         },
-                        .Directory => |dir| {
+                        .dir => |dir| {
                             const is_selected = (self.selected_idx != null and self.selected_idx.? == i);
                             const dir_label = std.fmt.allocPrintSentinel(self.allocator, "[d] {s}", .{dir}, 0) catch @panic("Memory allocation failed");
                             defer self.allocator.free(dir_label);
@@ -128,7 +128,7 @@ pub const RomBrowser = struct {
     fn loadRom(self: *RomBrowser, app: *AppState, filename: [:0]const u8) void {
         const full_path = std.fmt.allocPrintSentinel(self.allocator, "{s}/{s}", .{ self.current_path, filename }, 0) catch return;
         defer self.allocator.free(full_path);
-        const cart = Cartridge.from_file(full_path, self.allocator) catch @panic("Failed to open rom");
+        const cart = Cartridge.fromFile(full_path, self.allocator) catch @panic("Failed to open rom");
         app.emu.cpu.bus.cartridge = cart;
         app.emu.pause = false;
         self.visible = false;
@@ -136,25 +136,25 @@ pub const RomBrowser = struct {
 };
 
 const BrowserEntry = union(enum) {
-    File: [:0]u8,
-    Directory: [:0]u8,
+    dir: [:0]u8,
+    file: [:0]u8,
 
     fn cmpBrowserEntries(context: void, a: BrowserEntry, b: BrowserEntry) bool {
         _ = context;
 
-        const a_is_dir = a == .Directory;
-        const b_is_dir = b == .Directory;
+        const a_is_dir = a == .dir;
+        const b_is_dir = b == .dir;
 
         if (a_is_dir and !b_is_dir) return true;
         if (!a_is_dir and b_is_dir) return false;
 
         const name_a = switch (a) {
-            .File => |n| n,
-            .Directory => |n| n,
+            .file => |n| n,
+            .dir => |n| n,
         };
         const name_b = switch (b) {
-            .File => |n| n,
-            .Directory => |n| n,
+            .file => |n| n,
+            .dir => |n| n,
         };
 
         return std.ascii.lessThanIgnoreCase(name_a, name_b);

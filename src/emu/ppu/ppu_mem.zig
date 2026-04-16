@@ -70,7 +70,7 @@ pub const PPUMem = struct {
         allocator: Allocator,
         // emu: *Emulator
     ) !PPUMem {
-        const vram = try allocator.alloc(u8, model.vram_size());
+        const vram = try allocator.alloc(u8, model.vramSize());
         const oam = try allocator.alloc(u8, 0xA0);
         return .{
             .allocator = allocator,
@@ -99,7 +99,7 @@ pub const PPUMem = struct {
     pub fn write_registers(self: *@This(), addr: u16, value: u8) void {
         switch (addr) {
             0xFF40 => self.lcdc = value,
-            0xFF41 => self.stat = alu.masked_write(self.stat, 0x78, value),
+            0xFF41 => self.stat = alu.maskedWrite(self.stat, 0x78, value),
             0xFF42 => self.scy = value,
             0xFF43 => self.scx = value,
             0xFF44 => {}, // readonly

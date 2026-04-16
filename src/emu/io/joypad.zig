@@ -1,5 +1,4 @@
 const sapp = @import("sokol").app;
-const alu = @import("../cpu/arithmetics.zig");
 pub const Joypad = struct {
     p1_joyp: u8 = 0x3F,
 
@@ -14,7 +13,7 @@ pub const Joypad = struct {
         select: bool = false,
     } = .{},
 
-    pub fn handle_event(self: *Joypad, ev: [*c]const sapp.Event) void {
+    pub fn handleEvent(self: *Joypad, ev: [*c]const sapp.Event) void {
         const is_down = ev.*.type == sapp.EventType.KEY_DOWN;
         const is_up = ev.*.type == sapp.EventType.KEY_UP;
         if (is_down or is_up) {
@@ -33,7 +32,7 @@ pub const Joypad = struct {
                 else => {},
             }
         }
-        self.update_reg();
+        self.updateReg();
         return;
     }
 
@@ -63,7 +62,7 @@ pub const Joypad = struct {
         }
     }
 
-    pub fn update_reg(self: *Joypad) void {
+    pub fn updateReg(self: *Joypad) void {
         var action_bits: u8 = 0x0F;
         var dpad_bits: u8 = 0x0F;
 
@@ -92,12 +91,12 @@ pub const Joypad = struct {
 };
 
 pub const JoypadBtn = union(enum) {
-    up,
+    a,
+    b,
     down,
     left,
     right,
-    a,
-    b,
-    start,
     select,
+    start,
+    up,
 };

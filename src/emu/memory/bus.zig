@@ -1,7 +1,5 @@
-const std = @import("std");
-const hardware = @import("../hardware.zig");
-const constants = @import("../const.zig");
 const alu = @import("../cpu/arithmetics.zig");
+const std = @import("std");
 
 const Cartridge = @import("cartridge.zig").Cartridge;
 const CPU = @import("../cpu/cpu.zig").CPU;
@@ -35,7 +33,7 @@ pub const Bus = struct {
         return .{
             .cartridge = null,
             .bios = null,
-            .ppu = PPU.init(.DMG0, allocator),
+            .ppu = PPU.init(.dmg_0, allocator),
             .apu = APU.init(allocator),
             .allocator = allocator,
         };
@@ -58,9 +56,9 @@ pub const Bus = struct {
             0x0000...0x1FFF => return,
             0x2000...0x3FFF => {
                 switch (self.cartridge.?.mbc_type) {
-                    .NOMBC => return,
-                    .MBC1 => self.cartridge.?.rom_bank = @truncate((value & 0x1F)),
-                    .Other => return,
+                    .no_mbc => return,
+                    .mbc_1 => self.cartridge.?.rom_bank = @truncate((value & 0x1F)),
+                    .other => return,
                 }
             },
             0x4000...0x7FFF => return,
@@ -85,8 +83,8 @@ pub const Bus = struct {
             0xFEA0...0xFEFF => return,
             // -- Registers --
             0xFF00 => {
-                self.joypad.p1_joyp = alu.masked_write(self.joypad.p1_joyp, 0x30, value);
-                self.joypad.update_reg();
+                self.joypad.p1_joyp = alu.maskedWrite(self.joypad.p1_joyp, 0x30, value);
+                self.joypad.updateReg();
             },
             0xFF01...0xFF02 => self.dumb_registers[addr - 0xFF00] = value,
             0xFF03 => {}, //unused
@@ -105,7 +103,7 @@ pub const Bus = struct {
             0xFF13 => self.apu.nr13 = value,
             0xFF14 => {
                 if (value & 0x80 > 0) self.apu.trigger_ch1();
-                self.apu.nr14 = alu.masked_write(self.apu.nr14, 0xC7, value);
+                self.apu.nr14 = alu.maskedWrite(self.apu.nr14, 0xC7, value);
             },
             0xFF15 => {}, // unused
             0xFF16 => self.apu.nr21 = value,
@@ -119,13 +117,13 @@ pub const Bus = struct {
             0xFF18 => self.apu.nr23 = value,
             0xFF19 => {
                 if (value & 0x80 > 0) self.apu.trigger_ch2();
-                self.apu.nr24 = alu.masked_write(self.apu.nr24, 0xC7, value);
+                self.apu.nr24 = alu.maskedWrite(self.apu.nr24, 0xC7, value);
             },
             0xFF1A...0xFF25 => self.apu.audio_registers[addr - 0xFF10] = value,
             0xFF26 => {
                 if (value & 0x80 == 0) self.apu.turn_off();
 
-                self.apu.nr52 = alu.masked_write(self.apu.nr52, 0x80, value);
+                self.apu.nr52 = alu.maskedWrite(self.apu.nr52, 0x80, value);
             },
             0xFF27...0xFF3F => self.apu.audio_registers[addr - 0xFF10] = value,
             0xFF40...0xFF4B => self.ppu.mem.write_registers(addr, value),
@@ -160,8 +158,8 @@ pub const Bus = struct {
             0x0100...0x3FFF => return self.cartridge.?.rom[address],
             0x4000...0x7FFF => {
                 switch (self.cartridge.?.mbc_type) {
-                    .NOMBC => return self.cartridge.?.rom[address],
-                    .MBC1 => {
+                    .no_mbc => return self.cartridge.?.rom[address],
+                    .mbc_1 => {
                         var bank: usize = self.cartridge.?.rom_bank;
                         if (bank == 0) bank = 1;
 
@@ -177,7 +175,7 @@ pub const Bus = struct {
                         return self.cartridge.?.rom[physical_address];
                     },
 
-                    .Other => return 0xFF,
+                    .other => return 0xFF,
                 }
             },
             0x8000...0x9FFF => return self.ppu.mem.read_vram(address),
@@ -256,9 +254,9 @@ pub const Bus = struct {
     pub fn loadBios(self: *Bus) error{BiosNotFound}!void {
         var model = self.getCpu().model;
         const path = switch (model) {
-            .DMG0 => "./bios/dmg0.rom",
+            .dmg_0 => "./bios/dmg0.rom",
         };
 
-        self.bios = std.fs.cwd().readFileAlloc(self.allocator, path, model.bios_size()) catch return error.BiosNotFound;
+        self.bios = std.fs.cwd().readFileAlloc(self.allocator, path, model.biosSize()) catch return error.BiosNotFound;
     }
 };

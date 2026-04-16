@@ -1,5 +1,5 @@
-const instr_mod = @import("cpu/instructions.zig");
 pub const arithmetics = @import("cpu/arithmetics.zig");
+const instr_mod = @import("cpu/instructions.zig");
 
 pub const CPU = @import("cpu/cpu.zig").CPU;
 pub const Bus = @import("memory/bus.zig").Bus;

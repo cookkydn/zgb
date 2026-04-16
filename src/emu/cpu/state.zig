@@ -13,8 +13,8 @@ pub const CpuState = struct {
 };
 
 pub const IMEState = enum {
-    ENABLED,
     DISABLED,
+    ENABLED,
     /// Meaning will be enabled next iteration
     ENABLED_NEXT,
 };
