@@ -1,81 +1,109 @@
-const CPU = @import("cpu.zig").CPU;
-const constants = @import("../const.zig");
+const CPU = @import("cpu.zig").Cpu;
 
-const V_BLANK_MASK: u8 = 0b00000001;
-const STAT_MASK: u8 = 0b00000010;
-const TIMER_MASK: u8 = 0b00000100;
-const SERIAL_MASK: u8 = 0b00001000;
-const JOYPAD_MASK: u8 = 0b00010000;
+const v_blank_src = 0x40;
+const stat_src = 0x48;
+const timer_src = 0x50;
+const serial_src = 0x58;
+const joypad_src = 0x60;
+
+const v_blank_mask: u8 = 0b00000001;
+const stat_mask: u8 = 0b00000010;
+const timer_mask: u8 = 0b00000100;
+const serial_mask: u8 = 0b00001000;
+const joypad_mask: u8 = 0b00010000;
 
 pub const Interrupts = struct {
-    IF: u8 = 0,
-    IE: u8 = 0,
-    pub fn init() Interrupts {
-        return .{};
+    /// Interrupt flag (`0xFF0F`)
+    ///
+    /// When an interrupt request handling it set the corresponding bit in this register
+    /// ```text
+    /// +------+-------+-------------------+
+    /// | Bits | Access| Interrup          |
+    /// +------+-------+-------------------+
+    /// | 7..5 |   R   | Unused (always 1) |
+    /// | 4    |  R/W  | Joypad            |
+    /// | 3    |  R/W  | Serial            |
+    /// | 2    |  R/W  | Timer             |
+    /// | 1    |  R/W  | LCD               |
+    /// | 0    |  R/W  | Vblank            |
+    /// +------+-------+-------------------+
+    /// ```
+    if_reg: u8 = 0xE0,
+
+    /// Interrupt enable (`0xFFFF`)
+    ///
+    /// Controls whether an interrupt can be called by the cpu
+    /// ```text
+    /// +------+-------+-------------------+
+    /// | Bits | Access| Interrup          |
+    /// +------+-------+-------------------+
+    /// | 7..5 |   R   | Unused (always 1) |
+    /// | 4    |  R/W  | Joypad            |
+    /// | 3    |  R/W  | Serial            |
+    /// | 2    |  R/W  | Timer             |
+    /// | 1    |  R/W  | LCD               |
+    /// | 0    |  R/W  | Vblank            |
+    /// +------+-------+-------------------+
+    /// ```
+    ie_reg: u8 = 0xE0,
+
+    pub fn getCpu(self: *Interrupts) *CPU {
+        return @alignCast(@fieldParentPtr("int", self));
     }
 
-    pub fn get_cpu(self: *Interrupts) *CPU {
-        return @alignCast(@fieldParentPtr("interrupts", self));
-    }
+    pub fn handleInterrupts(self: *Interrupts) u16 {
+        var cpu = self.getCpu();
+        const ime = &cpu.state.ime;
 
-    pub fn handle_interrupts(self: *Interrupts) void {
-        if (self.IE & self.IF != 0) {
-            self.get_cpu().state.halted = false;
+        const int_mask = self.ie_reg & self.if_reg & 0x1F;
+        if (int_mask != 0) cpu.state.halted = false;
+
+        if (ime.* == .DISABLED) return 0;
+        if (ime.* == .ENABLED_NEXT) {
+            ime.* = .ENABLED;
+            return 0;
         }
 
-        if (self.get_cpu().state.ime == .DISABLED) return;
-        if (self.get_cpu().state.ime == .ENABLED_NEXT) {
-            self.get_cpu().state.ime = .ENABLED;
-            return;
+        if (int_mask == 0) return 0;
+        var cycles: u16 = 8;
+        ime.* = .DISABLED;
+
+        if (int_mask & v_blank_mask != 0) {
+            self.if_reg &= ~v_blank_mask;
+            cycles += cpu.execute_instruction(.{ .call_imm16 = .{ .imm16 = v_blank_src } });
+        } else if (int_mask & stat_mask != 0) {
+            self.if_reg &= ~stat_mask;
+            cycles += cpu.execute_instruction(.{ .call_imm16 = .{ .imm16 = stat_src } });
+        } else if (int_mask & timer_mask != 0) {
+            self.if_reg &= ~timer_mask;
+            cycles += cpu.execute_instruction(.{ .call_imm16 = .{ .imm16 = timer_src } });
+        } else if (int_mask & serial_mask != 0) {
+            self.if_reg &= ~serial_mask;
+            cycles += cpu.execute_instruction(.{ .call_imm16 = .{ .imm16 = serial_src } });
+        } else if (int_mask & joypad_mask != 0) {
+            self.if_reg &= ~joypad_mask;
+            cycles += cpu.execute_instruction(.{ .call_imm16 = .{ .imm16 = joypad_src } });
         }
-        var cycles: u16 = 0;
-        if (self.IF & self.IE & V_BLANK_MASK != 0) {
-            self.get_cpu().state.ime = .DISABLED;
-            self.IF &= ~V_BLANK_MASK;
-            cycles = self.get_cpu().execute_instruction(.{ .call_imm16 = .{ .imm16 = constants.v_blank_src } });
-            cycles += 8;
-        } else if (self.IF & self.IE & STAT_MASK != 0) {
-            self.get_cpu().state.ime = .DISABLED;
-            self.IF &= ~STAT_MASK;
-            cycles = self.get_cpu().execute_instruction(.{ .call_imm16 = .{ .imm16 = constants.stat_src } });
-            cycles += 8;
-        } else if (self.IF & self.IE & TIMER_MASK != 0) {
-            self.get_cpu().state.ime = .DISABLED;
-            self.IF &= ~TIMER_MASK;
-            cycles = self.get_cpu().execute_instruction(.{ .call_imm16 = .{ .imm16 = constants.timer_src } });
-            cycles += 8;
-        } else if (self.IF & self.IE & SERIAL_MASK != 0) {
-            self.get_cpu().state.ime = .DISABLED;
-            self.IF &= ~SERIAL_MASK;
-            cycles = self.get_cpu().execute_instruction(.{ .call_imm16 = .{ .imm16 = constants.serial_src } });
-            cycles += 8;
-        } else if (self.IF & self.IE & JOYPAD_MASK != 0) {
-            self.get_cpu().state.ime = .DISABLED;
-            self.IF &= ~JOYPAD_MASK;
-            cycles = self.get_cpu().execute_instruction(.{ .call_imm16 = .{ .imm16 = constants.joypad_src } });
-            cycles += 8;
-        }
-        self.get_cpu().bus.timer.tick(cycles);
-        self.get_cpu().bus.ppu.tick(cycles);
+        return cycles;
     }
 
     pub fn request_vblank(self: *Interrupts) void {
-        self.IF |= 0b00000001;
+        self.if_reg |= v_blank_mask;
     }
 
     pub fn request_stat(self: *Interrupts) void {
-        self.IF |= 0b00000010;
+        self.if_reg |= stat_mask;
     }
 
     pub fn request_timer(self: *Interrupts) void {
-        self.IF |= 0b00000100;
+        self.if_reg |= timer_mask;
     }
 
     pub fn request_serial(self: *Interrupts) void {
-        self.IF |= 0b00001000;
+        self.if_reg |= serial_mask;
     }
 
     pub fn request_joypad(self: *Interrupts) void {
-        self.IF |= 0b00010000;
+        self.if_reg |= joypad_mask;
     }
 };

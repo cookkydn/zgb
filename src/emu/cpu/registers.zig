@@ -1,22 +1,24 @@
-const CPU = @import("cpu.zig").CPU;
+const Gameboy = @import("../root.zig").Gameboy;
+const Cpu = @import("./cpu.zig").Cpu;
 const instr = @import("instructions.zig");
 
 pub const Registers = struct {
-    a: u8,
-    b: u8,
-    c: u8,
-    d: u8,
-    e: u8,
-    f: Flags,
-    h: u8,
-    l: u8,
+    a: u8 = 0xFF,
+    b: u8 = 0xFF,
+    c: u8 = 0xFF,
+    d: u8 = 0xFF,
+    e: u8 = 0xFF,
+    f: Flags = .{
+        .c = false,
+        .h = false,
+        .z = false,
+        .n = false,
+    },
+    h: u8 = 0xFF,
+    l: u8 = 0xFF,
 
-    sp: u16,
-    pc: u16,
-
-    fn getCPU(self: *Registers) *CPU {
-        return @alignCast(@fieldParentPtr("registers", self));
-    }
+    sp: u16 = 0xFFFF,
+    pc: u16 = 0,
 
     pub fn setAF(self: *Registers, value: u16) void {
         self.a = @truncate((value & 0xFF00) >> 8);
@@ -65,7 +67,8 @@ pub const Registers = struct {
     }
 
     pub fn loadR8(self: *Registers, r8: instr.R8) u8 {
-        var mem = &self.getCPU().bus;
+        const cpu: *Cpu = @alignCast(@fieldParentPtr("reg", self));
+        var mem = &Gameboy.getGB("cpu", cpu).bus;
         switch (r8) {
             .b => {
                 return self.b;
@@ -134,7 +137,8 @@ pub const Registers = struct {
     }
 
     pub fn setR8(self: *Registers, r8: instr.R8, value: u8) void {
-        var mem = &self.getCPU().bus;
+        const cpu: *Cpu = @alignCast(@fieldParentPtr("reg", self));
+        var mem = &Gameboy.getGB("cpu", cpu).bus;
         switch (r8) {
             .b => self.b = value,
             .c => self.c = value,

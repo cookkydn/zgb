@@ -24,8 +24,8 @@ const sgaudio = sokol.audio;
 
 // -- Global state --
 pub const AppState = struct {
-    allocator: Allocator,
-    emu: EmuState,
+    all: Allocator,
+    emu: Emulator,
     gfx: GfxState,
     layout: LayoutState,
     panels: PanelsState,
@@ -37,13 +37,13 @@ pub const AppState = struct {
 
     pub const Event = [*c]const sapp.Event;
 
-    pub fn init(allocator: Allocator) AppState {
+    pub fn init(all: Allocator) AppState {
         return .{
-            .allocator = allocator,
-            .emu = EmuState.init(),
+            .all = all,
+            .emu = Emulator.init(all),
             .gfx = GfxState.init(),
             .layout = LayoutState.init(),
-            .panels = PanelsState.init(allocator),
+            .panels = PanelsState.init(all),
         };
     }
 
@@ -105,7 +105,7 @@ pub const AppState = struct {
     pub fn event(self: *AppState, ev: Event) void {
         _ = simgui.handleEvent(ev.*);
         if (ig.igGetIO().*.WantCaptureKeyboard) return;
-        self.emu.cpu.bus.joypad.handleEvent(ev);
+        self.emu.gb.joypad.handleEvent(ev);
     }
 };
 
@@ -136,8 +136,8 @@ pub const GfxState = struct {
     }
 };
 
-pub const EmuState = struct {
-    cpu: emu.CPU,
+pub const Emulator = struct {
+    gb: emu.Gameboy,
     pause: bool = true,
     is_overloaded: bool = false,
     overload_count: u32 = 0,
@@ -146,17 +146,17 @@ pub const EmuState = struct {
 
     const cpu_freq = 4194304.0;
 
-    pub fn init() EmuState {
-        return .{ .cpu = emu.CPU.init(.dmg_0) };
+    pub fn init(all: Allocator) Emulator {
+        return .{ .gb = emu.Gameboy.init(all) };
     }
 
-    pub fn deinit(self: *EmuState) void {
-        self.cpu.deinit();
+    pub fn deinit(self: *Emulator) void {
+        self.gb.deinit();
     }
 
-    pub fn drawScreen(emu_state: *EmuState) void {
+    pub fn drawScreen(emu_state: *Emulator) void {
         var app = getApp(emu_state, "emu");
-        app.gfx.screen_tex.update(&app.emu.cpu.bus.ppu.frame_buffer);
+        app.gfx.screen_tex.update(&app.emu.gb.ppu.frame_buffer);
 
         if (ig.igBegin(LayoutManager.Panels.screen, null, ig.ImGuiWindowFlags_None)) {
             const tex_id = app.gfx.screen_tex.imTextureId();
@@ -181,8 +181,8 @@ pub const EmuState = struct {
         ig.igEnd();
     }
 
-    pub fn pushSound(self: *EmuState) void {
-        const apu = &self.cpu.bus.apu;
+    pub fn pushSound(self: *Emulator) void {
+        const apu = &self.gb.apu;
         if (apu.buffer_index >= apu.buffer.len) {
             apu.buffer_index = 0;
             for (apu.buffer, 0..) |_, i| {
@@ -192,7 +192,7 @@ pub const EmuState = struct {
         }
     }
 
-    pub fn frameEmu(self: *EmuState) void {
+    pub fn frameEmu(self: *Emulator) void {
         if (!self.pause) {
             self.cycle_acc += sapp.frameDuration() * cpu_freq;
             if (self.cycle_acc > cpu_freq / 10.0) {
@@ -206,24 +206,24 @@ pub const EmuState = struct {
             }
             while (self.cycle_acc > 0) {
                 var cycles_taken: u16 = 4;
-                if (!self.cpu.state.halted) {
-                    const instr = emu.Instruction.from_bus(&self.cpu.bus);
-                    cycles_taken = self.cpu.execute_instruction(instr);
+                if (!self.gb.cpu.state.halted) {
+                    const instr = emu.Instruction.fromBus(&self.gb.bus);
+                    cycles_taken = self.gb.cpu.execute_instruction(instr);
                 }
-                self.cpu.bus.ppu.tick(cycles_taken);
-                self.cpu.bus.timer.tick(cycles_taken);
-                self.cpu.bus.apu.tick(cycles_taken);
+                cycles_taken += self.gb.cpu.int.handleInterrupts();
+                self.gb.ppu.tick(cycles_taken);
+                self.gb.timer.tick(cycles_taken);
+                self.gb.apu.tick(cycles_taken);
                 self.pushSound();
-                self.cpu.interrupts.handle_interrupts();
                 self.cycle_acc -= @floatFromInt(cycles_taken);
             }
         }
     }
 
-    pub fn printDebugInfo(self: EmuState) void {
+    pub fn printDebugInfo(self: Emulator) void {
         const print = std.debug.print;
         print("====== DEBUG REPORT ======\n", .{});
-        if (self.cpu.bus.cartridge) |cartridge| {
+        if (self.gb.bus.cartridge) |cartridge| {
             print("=> Cartridge type: {s}\n", .{@tagName(cartridge.mbc_type)});
             print("=> Cartridge rom size: 0x{x}\n", .{cartridge.rom.len});
             print("=> Cartridge ram size: 0x{x}\n", .{cartridge.ram.len});

@@ -2,11 +2,10 @@ const alu = @import("../cpu/arithmetics.zig");
 const std = @import("std");
 
 const Cartridge = @import("cartridge.zig").Cartridge;
-const CPU = @import("../cpu/cpu.zig").CPU;
-const PPU = @import("../ppu/ppu.zig").PPU;
-const APU = @import("../apu/apu.zig").APU;
+const Ppu = @import("../ppu/ppu.zig").Ppu;
 const Timer = @import("../io/timer.zig").Timer;
 const Joypad = @import("../io/joypad.zig").Joypad;
+const Gameboy = @import("../root.zig").Gameboy;
 
 pub const Bus = struct {
     bios: ?[]u8,
@@ -15,26 +14,16 @@ pub const Bus = struct {
     dumb_registers: [0x77]u8 = .{0} ** 0x77,
     oam_src: u8 = 0,
     cartridge: ?Cartridge,
-    ppu: PPU,
-    apu: APU,
     allocator: std.mem.Allocator,
-    timer: Timer = Timer.init(),
     invalidate_cache: bool = false,
-    joypad: Joypad = Joypad{},
 
     is_bios: bool = true,
-
-    pub fn getCpu(self: *Bus) *CPU {
-        return @alignCast(@fieldParentPtr("bus", self));
-    }
 
     pub fn init() Bus {
         const allocator = std.heap.page_allocator;
         return .{
             .cartridge = null,
             .bios = null,
-            .ppu = PPU.init(.dmg_0, allocator),
-            .apu = APU.init(allocator),
             .allocator = allocator,
         };
     }
@@ -43,14 +32,13 @@ pub const Bus = struct {
         if (self.cartridge) |cartridge| {
             cartridge.deinit();
         }
-        self.ppu.deinit();
-        self.apu.deinit();
         if (self.bios) |bios| {
             self.allocator.free(bios);
         }
     }
 
     pub fn write_at(self: *Bus, addr: u16, value: u8) void {
+        const gb = Gameboy.getGB("bus", self);
         switch (addr) {
             // -- ROM --
             0x0000...0x1FFF => return,
@@ -63,7 +51,7 @@ pub const Bus = struct {
             },
             0x4000...0x7FFF => return,
             // -- VRAM --
-            0x8000...0x9FFF => self.ppu.mem.write_vram(addr, value),
+            0x8000...0x9FFF => gb.ppu.mem.write_vram(addr, value),
             // -- Cartridge RAM --
             0xA000...0xBFFF => {
                 if (self.cartridge.?.ram.len != 0) {
@@ -78,55 +66,55 @@ pub const Bus = struct {
             // -- Echo ram --
             0xE000...0xFDFF => self.wram[addr - 0xE000] = value,
             // -- OAM --
-            0xFE00...0xFE9F => self.ppu.mem.oam[addr - 0xFE00] = value,
+            0xFE00...0xFE9F => gb.ppu.mem.oam[addr - 0xFE00] = value,
             // -- Not usable --
             0xFEA0...0xFEFF => return,
             // -- Registers --
             0xFF00 => {
-                self.joypad.p1_joyp = alu.maskedWrite(self.joypad.p1_joyp, 0x30, value);
-                self.joypad.updateReg();
+                gb.joypad.p1_joyp = alu.maskedWrite(gb.joypad.p1_joyp, 0x30, value);
+                gb.joypad.updateReg();
             },
             0xFF01...0xFF02 => self.dumb_registers[addr - 0xFF00] = value,
             0xFF03 => {}, //unused
             0xFF04 => {
-                self.timer.div = 0;
-                self.timer.div_counter = 0;
+                gb.timer.div = 0;
+                gb.timer.div_counter = 0;
             },
-            0xFF05 => self.timer.tima = value,
-            0xFF06 => self.timer.tma = value,
-            0xFF07 => self.timer.tac = value,
+            0xFF05 => gb.timer.tima = value,
+            0xFF06 => gb.timer.tma = value,
+            0xFF07 => gb.timer.tac = value,
             0xFF08...0xFF0E => {}, // unused
-            0xFF0F => self.getCpu().interrupts.IF = value,
-            0xFF10 => self.apu.nr10 = value,
-            0xFF11 => self.apu.nr11 = value,
-            0xFF12 => self.apu.nr12 = value,
-            0xFF13 => self.apu.nr13 = value,
+            0xFF0F => gb.cpu.int.if_reg = value,
+            0xFF10 => gb.apu.nr10 = value,
+            0xFF11 => gb.apu.nr11 = value,
+            0xFF12 => gb.apu.nr12 = value,
+            0xFF13 => gb.apu.nr13 = value,
             0xFF14 => {
-                if (value & 0x80 > 0) self.apu.trigger_ch1();
-                self.apu.nr14 = alu.maskedWrite(self.apu.nr14, 0xC7, value);
+                if (value & 0x80 > 0) gb.apu.trigger_ch1();
+                gb.apu.nr14 = alu.maskedWrite(gb.apu.nr14, 0xC7, value);
             },
             0xFF15 => {}, // unused
-            0xFF16 => self.apu.nr21 = value,
+            0xFF16 => gb.apu.nr21 = value,
             0xFF17 => {
                 // Turn of channel 2
                 if (value & 0xF8 == 0) {
-                    self.apu.nr52 &= 0xFD;
+                    gb.apu.nr52 &= 0xFD;
                 }
-                self.apu.nr22 = value;
+                gb.apu.nr22 = value;
             },
-            0xFF18 => self.apu.nr23 = value,
+            0xFF18 => gb.apu.nr23 = value,
             0xFF19 => {
-                if (value & 0x80 > 0) self.apu.trigger_ch2();
-                self.apu.nr24 = alu.maskedWrite(self.apu.nr24, 0xC7, value);
+                if (value & 0x80 > 0) gb.apu.trigger_ch2();
+                gb.apu.nr24 = alu.maskedWrite(gb.apu.nr24, 0xC7, value);
             },
-            0xFF1A...0xFF25 => self.apu.audio_registers[addr - 0xFF10] = value,
+            0xFF1A...0xFF25 => gb.apu.audio_registers[addr - 0xFF10] = value,
             0xFF26 => {
-                if (value & 0x80 == 0) self.apu.turn_off();
+                if (value & 0x80 == 0) gb.apu.turn_off();
 
-                self.apu.nr52 = alu.maskedWrite(self.apu.nr52, 0x80, value);
+                gb.apu.nr52 = alu.maskedWrite(gb.apu.nr52, 0x80, value);
             },
-            0xFF27...0xFF3F => self.apu.audio_registers[addr - 0xFF10] = value,
-            0xFF40...0xFF4B => self.ppu.mem.write_registers(addr, value),
+            0xFF27...0xFF3F => gb.apu.audio_registers[addr - 0xFF10] = value,
+            0xFF40...0xFF4B => gb.ppu.mem.write_registers(addr, value),
             0xFF4C => {}, // CGB only
             0xFF4D => {}, // CGB only
             0xFF4E => {}, // unused
@@ -143,11 +131,12 @@ pub const Bus = struct {
                 self.invalidate_cache = true;
             },
             // -- IE --
-            0xFFFF => self.getCpu().interrupts.IE = value,
+            0xFFFF => gb.cpu.int.ie_reg = value,
         }
     }
 
     pub fn read_at(self: *Bus, address: u16) u8 {
+        const gb = Gameboy.getGB("bus", self);
         return switch (address) {
             0x0000...0x00FF => {
                 if (self.is_bios) {
@@ -178,24 +167,24 @@ pub const Bus = struct {
                     .other => return 0xFF,
                 }
             },
-            0x8000...0x9FFF => return self.ppu.mem.read_vram(address),
+            0x8000...0x9FFF => return gb.ppu.mem.read_vram(address),
             0xA000...0xBFFF => return 0xFF, // RAM (TODO Implement MBC With RAM)
             0xC000...0xCFFF => return self.wram[address - 0xC000],
             0xD000...0xDFFF => return self.wram[address - 0xC000],
             0xE000...0xFDFF => return self.wram[address - 0xE000], // ECHO RAM
-            0xFE00...0xFE9F => return self.ppu.mem.oam[address - 0xFE00], // OAM
+            0xFE00...0xFE9F => return gb.ppu.mem.oam[address - 0xFE00], // OAM
             0xFEA0...0xFEFF => return 0xFF, // Prohibited
-            0xFF00 => return self.joypad.p1_joyp,
+            0xFF00 => return gb.joypad.p1_joyp,
             0xFF01 => 0xFF, //TODO Serial
             0xFF02 => 0xFF, //TODO Serial
-            0xFF04 => return self.timer.div,
-            0xFF0F => return self.getCpu().interrupts.IF,
-            0xFF16 => return self.apu.nr21 | 0x3F,
-            0xFF17 => return self.apu.nr22,
+            0xFF04 => return gb.timer.div,
+            0xFF0F => return gb.cpu.int.if_reg,
+            0xFF16 => return gb.apu.nr21 | 0x3F,
+            0xFF17 => return gb.apu.nr22,
             0xFF18 => return 0xFF,
-            0xFF19 => return self.apu.nr24 | 0xBF,
+            0xFF19 => return gb.apu.nr24 | 0xBF,
             0xFF20 => return 0xFF, // Unused
-            0xFF40...0xFF4B => return self.ppu.mem.read_registers(address),
+            0xFF40...0xFF4B => return gb.ppu.mem.read_registers(address),
             0xFF4D => return 0xFF, // CGB only
             0xFF57...0xFF67 => return 0xFF, // Unused
             0xFF68 => return 0xFF, // CGB only
@@ -210,7 +199,7 @@ pub const Bus = struct {
             0xFF77 => return 0xFF, // TODO SOUND
             0xFF78...0xFF7F => return 0xFF, // Unused
             0xFF80...0xFFFE => return self.hram[address - 0xFF80],
-            0xFFFF => return self.getCpu().interrupts.IE,
+            0xFFFF => return gb.cpu.int.ie_reg,
             else => |addr| {
                 std.debug.panic("Error: Unhandled read at memory address: 0x{x:0>4}\n", .{addr});
             },
@@ -218,8 +207,9 @@ pub const Bus = struct {
     }
 
     pub fn read_u8(self: *Bus) u8 {
-        self.getCpu().registers.pc += 1;
-        return self.read_at(self.getCpu().registers.pc - 1);
+        const gb = Gameboy.getGB("bus", self);
+        gb.cpu.reg.pc += 1;
+        return self.read_at(gb.cpu.reg.pc - 1);
     }
 
     pub fn read_i8(self: *Bus) i8 {
@@ -234,7 +224,8 @@ pub const Bus = struct {
     }
 
     pub fn pop(self: *Bus) u16 {
-        const sp = &self.getCpu().registers.sp;
+        const gb = Gameboy.getGB("bus", self);
+        const sp = &gb.cpu.reg.sp;
         const l = @as(u16, self.read_at(sp.*));
         sp.* += 1;
         const h = @as(u16, self.read_at(sp.*));
@@ -243,7 +234,8 @@ pub const Bus = struct {
     }
 
     pub fn push(self: *Bus, value: u16) void {
-        const sp = &self.getCpu().registers.sp;
+        const gb = Gameboy.getGB("bus", self);
+        const sp = &gb.cpu.reg.sp;
         sp.* -= 1;
         self.write_at(sp.*, @truncate(value >> 8));
         sp.* -= 1;
@@ -252,7 +244,8 @@ pub const Bus = struct {
     }
 
     pub fn loadBios(self: *Bus) error{BiosNotFound}!void {
-        var model = self.getCpu().model;
+        const gb = Gameboy.getGB("bus", self);
+        var model = gb.cpu.model;
         const path = switch (model) {
             .dmg_0 => "./bios/dmg0.rom",
         };

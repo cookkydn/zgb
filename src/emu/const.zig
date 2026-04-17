@@ -1,10 +1,3 @@
-// Interrupts src
-pub const v_blank_src = 0x40;
-pub const stat_src = 0x48;
-pub const timer_src = 0x50;
-pub const serial_src = 0x58;
-pub const joypad_src = 0x60;
-
 // VIDEO constants
 pub const screen_width = 160;
 pub const screen_height = 144;

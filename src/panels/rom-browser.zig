@@ -129,7 +129,7 @@ pub const RomBrowser = struct {
         const full_path = std.fmt.allocPrintSentinel(self.allocator, "{s}/{s}", .{ self.current_path, filename }, 0) catch return;
         defer self.allocator.free(full_path);
         const cart = Cartridge.fromFile(full_path, self.allocator) catch @panic("Failed to open rom");
-        app.emu.cpu.bus.cartridge = cart;
+        app.emu.gb.bus.cartridge = cart;
         app.emu.pause = false;
         self.visible = false;
     }

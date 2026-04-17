@@ -2,11 +2,12 @@ const std = @import("std");
 const Emulator = @import("../root.zig").Emulator;
 const alu = @import("../cpu/arithmetics.zig");
 const Bus = @import("../memory/bus.zig").Bus;
-const PPU = @import("ppu.zig").PPU;
+const PPU = @import("ppu.zig").Ppu;
 const GbModel = @import("../hardware.zig").GbModel;
+const Gameboy = @import("../root.zig").Gameboy;
 const Allocator = std.mem.Allocator;
 
-pub const PPUMem = struct {
+pub const PpuMem = struct {
     allocator: Allocator,
     // emu: *Emulator,
     // -- Memory Regions --
@@ -69,7 +70,7 @@ pub const PPUMem = struct {
         model: GbModel,
         allocator: Allocator,
         // emu: *Emulator
-    ) !PPUMem {
+    ) !PpuMem {
         const vram = try allocator.alloc(u8, model.vramSize());
         const oam = try allocator.alloc(u8, 0xA0);
         return .{
@@ -143,15 +144,12 @@ pub const PPUMem = struct {
     ///
     /// Copy from `[DMA*256]` to `[DMA*256] + 160` into OAM
     fn execute_dma(self: *@This()) void {
+        const ppu: *PPU = @alignCast(@fieldParentPtr("mem", self));
+        const gb = Gameboy.getGB("ppu", ppu);
         const transfer_src: u16 = @as(u16, self.dma) << 8;
         for (0..0xA0) |i| {
-            self.oam[i] = self.get_bus().read_at(transfer_src + @as(u16, @truncate(i)));
+            self.oam[i] = gb.bus.read_at(transfer_src + @as(u16, @truncate(i)));
         }
-        self.get_bus().timer.tick(640);
-    }
-
-    fn get_bus(self: *@This()) *Bus {
-        const ppu: *PPU = @alignCast(@fieldParentPtr("mem", self));
-        return @alignCast(@fieldParentPtr("ppu", ppu));
+        gb.timer.tick(640);
     }
 };

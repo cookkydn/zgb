@@ -2,7 +2,7 @@ const constants = @import("../const.zig");
 const std = @import("std");
 
 // Audio processing unig
-pub const APU = struct {
+pub const Apu = struct {
     audio_registers: [0x30]u8,
     /// Master_control
     nr52: u8 = 0,
@@ -55,19 +55,19 @@ pub const APU = struct {
     ch2_volume: u8 = 0,
     ch2_env_timer: u8 = 0,
 
-    pub fn init(all: std.mem.Allocator) APU {
+    pub fn init(all: std.mem.Allocator) Apu {
         return .{
             .audio_registers = .{0x00} ** 0x30,
             .allocator = all,
         };
     }
 
-    pub fn deinit(self: *APU) void {
+    pub fn deinit(self: *Apu) void {
         _ = self;
         return;
     }
 
-    pub fn tick(self: *APU, ticks: u16) void {
+    pub fn tick(self: *Apu, ticks: u16) void {
         self.frame_seq -= @as(i32, ticks);
         while (self.frame_seq <= 0) {
             self.frame_seq += 8192;
@@ -202,11 +202,11 @@ pub const APU = struct {
         }
     }
 
-    fn is_on(self: *APU) bool {
+    fn is_on(self: *Apu) bool {
         return self.nr52 & 0x80 > 0;
     }
 
-    pub fn turn_off(self: *APU) void {
+    pub fn turn_off(self: *Apu) void {
         // Reset channel 1
         self.nr10 = 0;
         self.nr11 = 0;
@@ -223,29 +223,29 @@ pub const APU = struct {
         self.nr52 = 0;
     }
 
-    fn is_ch1_on(self: *APU) bool {
+    fn is_ch1_on(self: *Apu) bool {
         return self.nr52 & 0x1 > 0;
     }
 
-    fn is_ch2_on(self: *APU) bool {
+    fn is_ch2_on(self: *Apu) bool {
         return self.nr52 & 0x2 > 0;
     }
 
-    pub fn trigger_ch1(self: *APU) void {
+    pub fn trigger_ch1(self: *Apu) void {
         self.nr52 = self.nr52 | 1;
         if (self.ch1_length_counter == 0) self.ch1_length_counter = 64;
         self.ch1_freq_timer = (2048 - @as(i32, self.get_ch1_freq())) * 4;
         self.ch1_volume = (self.nr12 & 0xF0) >> 4;
     }
 
-    pub fn trigger_ch2(self: *APU) void {
+    pub fn trigger_ch2(self: *Apu) void {
         self.nr52 = self.nr52 | 2;
         if (self.ch2_length_counter == 0) self.ch2_length_counter = 64;
         self.ch2_freq_timer = (2048 - @as(i32, self.get_ch2_freq())) * 4;
         self.ch2_volume = (self.nr22 & 0xF0) >> 4;
     }
 
-    fn get_ch1_wave_duty(self: *APU) [8]bool {
+    fn get_ch1_wave_duty(self: *Apu) [8]bool {
         const duty: u2 = @truncate((self.nr11 & 0xC0) >> 6);
         return switch (duty) {
             0b00 => .{ true, true, true, true, true, true, true, false },
@@ -255,7 +255,7 @@ pub const APU = struct {
         };
     }
 
-    fn get_ch2_wave_duty(self: *APU) [8]bool {
+    fn get_ch2_wave_duty(self: *Apu) [8]bool {
         const duty: u2 = @truncate((self.nr21 & 0xC0) >> 6);
         return switch (duty) {
             0b00 => .{ true, true, true, true, true, true, true, false },
@@ -265,55 +265,55 @@ pub const APU = struct {
         };
     }
 
-    fn get_ch1_freq(self: *APU) u11 {
+    fn get_ch1_freq(self: *Apu) u11 {
         return @as(u11, self.nr13) | (@as(u11, self.nr14 & 0x7) << 8);
     }
 
-    fn is_ch1_length_enabled(self: *APU) bool {
+    fn is_ch1_length_enabled(self: *Apu) bool {
         return self.nr14 & 0x40 != 0;
     }
 
-    fn is_ch1_env_enabled(self: *APU) bool {
+    fn is_ch1_env_enabled(self: *Apu) bool {
         return self.get_ch1_envelope_pace() != 0;
     }
 
-    fn get_ch1_envelope_pace(self: *APU) u3 {
+    fn get_ch1_envelope_pace(self: *Apu) u3 {
         return @truncate(self.nr12 & 0x07);
     }
 
-    fn get_ch1_sweep_pace(self: *APU) u3 {
+    fn get_ch1_sweep_pace(self: *Apu) u3 {
         return @truncate((self.nr10 & 0x70) >> 4);
     }
 
-    fn get_ch1_sweep_dir(self: *APU) SweepDir {
+    fn get_ch1_sweep_dir(self: *Apu) SweepDir {
         return @enumFromInt(@as(u1, @truncate((self.nr10 & 0x08) >> 3)));
     }
 
-    fn get_ch1_sweep_step(self: *APU) u3 {
+    fn get_ch1_sweep_step(self: *Apu) u3 {
         return @truncate(self.nr10 & 0x07);
     }
 
-    fn get_ch1_env_dir(self: *APU) EnvelopeDir {
+    fn get_ch1_env_dir(self: *Apu) EnvelopeDir {
         return @enumFromInt(@as(u1, @truncate((self.nr12 & 0x08) >> 3)));
     }
 
-    fn get_ch2_freq(self: *APU) u11 {
+    fn get_ch2_freq(self: *Apu) u11 {
         return @as(u11, self.nr23) | (@as(u11, self.nr24 & 0x7) << 8);
     }
 
-    fn is_ch2_length_enabled(self: *APU) bool {
+    fn is_ch2_length_enabled(self: *Apu) bool {
         return self.nr24 & 0x40 != 0;
     }
 
-    fn is_ch2_env_enabled(self: *APU) bool {
+    fn is_ch2_env_enabled(self: *Apu) bool {
         return self.get_ch2_envelope_pace() != 0;
     }
 
-    fn get_ch2_envelope_pace(self: *APU) u3 {
+    fn get_ch2_envelope_pace(self: *Apu) u3 {
         return @truncate(self.nr22 & 0x07);
     }
 
-    fn get_ch2_env_dir(self: *APU) EnvelopeDir {
+    fn get_ch2_env_dir(self: *Apu) EnvelopeDir {
         return @enumFromInt(@as(u1, @truncate((self.nr22 & 0x08) >> 3)));
     }
 };

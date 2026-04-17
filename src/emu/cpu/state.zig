@@ -1,15 +1,7 @@
 pub const CpuState = struct {
-    stopped: bool,
-    halted: bool,
-    ime: IMEState,
-
-    pub fn init() CpuState {
-        return .{
-            .halted = false,
-            .stopped = false,
-            .ime = .DISABLED,
-        };
-    }
+    stopped: bool = false,
+    halted: bool = false,
+    ime: IMEState = .DISABLED,
 };
 
 pub const IMEState = enum {

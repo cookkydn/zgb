@@ -3,29 +3,30 @@ const constants = @import("../const.zig");
 const std = @import("std");
 
 const GbModel = @import("../hardware.zig").GbModel;
-const CPU = @import("../cpu/cpu.zig").CPU;
+const Cpu = @import("../cpu/cpu.zig").Cpu;
 const Bus = @import("../memory/bus.zig").Bus;
 const Sprite = @import("sprite.zig").Sprite;
-const PPUMem = @import("ppu_mem.zig").PPUMem;
+const PpuMem = @import("ppu_mem.zig").PpuMem;
+const Gameboy = @import("../root.zig").Gameboy;
 
 const SCREEN_HEIGHT = constants.screen_height;
 const SCREEN_WIDTH = constants.screen_width;
 
-pub const PPU = struct {
-    mem: PPUMem,
+pub const Ppu = struct {
+    mem: PpuMem,
     allocator: std.mem.Allocator,
 
     frame_buffer: [SCREEN_HEIGHT * SCREEN_WIDTH]u32 = .{0} ** (SCREEN_HEIGHT * SCREEN_WIDTH),
     dots: u16 = 0,
 
-    pub fn init(model: GbModel, allocator: std.mem.Allocator) PPU {
+    pub fn init(model: GbModel, allocator: std.mem.Allocator) Ppu {
         return .{
-            .mem = PPUMem.init(model, allocator) catch @panic("Failed to initialize PPU mem"),
+            .mem = PpuMem.init(model, allocator) catch @panic("Failed to initialize PPU mem"),
             .allocator = allocator,
         };
     }
 
-    fn getCpu(self: *PPU) *CPU {
+    fn getCpu(self: *Ppu) *Cpu {
         const bus: *Bus = @alignCast(@fieldParentPtr("ppu", self));
         return @alignCast(@fieldParentPtr("bus", bus));
     }
@@ -34,16 +35,17 @@ pub const PPU = struct {
         self.mem.stat = (self.mem.stat & 0xFC) | @intFromEnum(mode);
     }
 
-    pub fn getMode(self: *PPU) Mode {
+    pub fn getMode(self: *Ppu) Mode {
         return @enumFromInt(self.mem.stat & 0b11);
     }
 
-    pub fn deinit(self: *PPU) void {
+    pub fn deinit(self: *Ppu) void {
         self.mem.deinit();
     }
 
-    pub fn tick(self: *PPU, cycles: u16) void {
+    pub fn tick(self: *Ppu, cycles: u16) void {
         if (self.mem.lcdc & 0x80 == 0) return self.turn_off();
+        const gb = Gameboy.getGB("ppu", self);
 
         self.dots += cycles;
 
@@ -65,7 +67,7 @@ pub const PPU = struct {
                 self.mem.ly += 1;
                 if (self.mem.ly == 144) {
                     self.setMode(.v_blank);
-                    self.getCpu().interrupts.request_vblank();
+                    gb.cpu.int.request_vblank();
                 } else {
                     self.setMode(.oam_scan);
                 }
@@ -82,7 +84,7 @@ pub const PPU = struct {
         }
     }
 
-    fn renderScanLine(self: *PPU) void {
+    fn renderScanLine(self: *Ppu) void {
         const absolute_y: u16 = (@as(u16, self.mem.ly) + @as(u16, self.mem.scy)) % 256;
         const tile_y: u16 = absolute_y / 8;
         const offset_y: u16 = absolute_y % 8;
@@ -118,7 +120,7 @@ pub const PPU = struct {
         }
     }
 
-    fn getBackgroundPixelData(self: *PPU, tile_index: u8, x: u16, y: u16) u2 {
+    fn getBackgroundPixelData(self: *Ppu, tile_index: u8, x: u16, y: u16) u2 {
         std.debug.assert(x < 8 and y < 8);
         const addressing = self.getAddressingMode();
 
@@ -143,7 +145,7 @@ pub const PPU = struct {
         return @as(u2, @truncate((msb_bit << 1) | lsb_bit));
     }
 
-    fn putPixel(self: *PPU, x: usize, y: usize, color_id: u2) void {
+    fn putPixel(self: *Ppu, x: usize, y: usize, color_id: u2) void {
         if (x >= SCREEN_WIDTH or y >= SCREEN_HEIGHT) return;
 
         const index = (y * SCREEN_WIDTH) + x;
@@ -158,15 +160,15 @@ pub const PPU = struct {
         self.frame_buffer[index] = color_argb;
     }
 
-    inline fn getBGTileMapArea(self: *PPU) u16 {
+    inline fn getBGTileMapArea(self: *Ppu) u16 {
         return if (self.mem.lcdc & 8 > 0) 0x9C00 else 0x9800;
     }
 
-    inline fn getAddressingMode(self: *PPU) AddressingMode {
+    inline fn getAddressingMode(self: *Ppu) AddressingMode {
         return if (self.mem.lcdc & 16 > 0) .UNSIGNED else .SIGNED;
     }
 
-    inline fn getColorByBgPalette(self: *PPU, color_id: u2) u2 {
+    inline fn getColorByBgPalette(self: *Ppu, color_id: u2) u2 {
         return switch (color_id) {
             0 => @truncate((self.mem.bgp & 0x03)),
             1 => @truncate((self.mem.bgp & 0x0C) >> 2),
@@ -175,7 +177,7 @@ pub const PPU = struct {
         };
     }
 
-    inline fn getColorByObjPalette(self: *PPU, color_id: u2, obp: u1) u2 {
+    inline fn getColorByObjPalette(self: *Ppu, color_id: u2, obp: u1) u2 {
         return switch (obp) {
             0 => switch (color_id) {
                 0 => @truncate((self.mem.obp0 & 0x03)),
@@ -192,7 +194,7 @@ pub const PPU = struct {
         };
     }
 
-    pub fn turn_off(self: *PPU) void {
+    pub fn turn_off(self: *Ppu) void {
         if (self.frame_buffer[0] == constants.argb_color_palette.white_off) return;
         self.setMode(Mode.h_blank);
         self.mem.ly = 0;

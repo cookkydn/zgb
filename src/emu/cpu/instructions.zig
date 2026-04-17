@@ -774,11 +774,11 @@ pub const Instruction = union(enum) {
     }
 
     pub fn takeAt(bus: *Bus, addr: u16) InstructionEntry {
-        const pc = bus.getCpu().registers.pc;
-        bus.getCpu().registers.pc = addr;
+        const pc = bus.getCpu().reg.pc;
+        bus.getCpu().reg.pc = addr;
         const instr = Instruction.fromBus(bus);
-        const size = bus.getCpu().registers.pc - addr;
-        bus.getCpu().registers.pc = pc;
+        const size = bus.getCpu().reg.pc - addr;
+        bus.getCpu().reg.pc = pc;
         return .{ .instruction = instr, .size = size };
     }
 };

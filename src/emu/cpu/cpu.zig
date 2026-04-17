@@ -1,39 +1,29 @@
 const alu = @import("./arithmetics.zig");
 const hardware = @import("../hardware.zig");
-const std = @import("std");
 
 const Bus = @import("../memory/bus.zig").Bus;
 const Registers = @import("registers.zig").Registers;
 const Instruction = @import("./instructions.zig").Instruction;
 const CpuState = @import("state.zig").CpuState;
 const Interrupts = @import("interrupts.zig").Interrupts;
+const Gameboy = @import("../root.zig").Gameboy;
 
-pub const CPU = struct {
+pub const Cpu = struct {
     model: hardware.GbModel,
-    bus: Bus,
-    registers: Registers = Registers.init(),
-    state: CpuState = CpuState.init(),
-    interrupts: Interrupts = Interrupts.init(),
+    reg: Registers = Registers{},
+    state: CpuState = CpuState{},
+    int: Interrupts = Interrupts{},
 
-    pub fn init(model: hardware.GbModel) CPU {
-        var bus = Bus.init();
-        bus.loadBios() catch |err| {
-            std.debug.print("Failed to load bios: {s}\n", .{@errorName(err)});
-            @panic("");
-        };
+    pub fn init(model: hardware.GbModel) Cpu {
         return .{
             .model = model,
-            .bus = bus,
         };
     }
 
-    pub fn deinit(self: *CPU) void {
-        self.bus.deinit();
-    }
+    pub fn execute_instruction(self: *Cpu, instruction: Instruction) u16 {
+        var reg = &self.reg;
+        var mem = &Gameboy.getGB("cpu", self).bus;
 
-    pub fn execute_instruction(self: *CPU, instruction: Instruction) u16 {
-        const reg = &self.*.registers;
-        const mem = &self.bus;
         var cycles: u16 = 4;
         switch (instruction) {
             .nop, .breakpoint => return cycles,
@@ -420,7 +410,7 @@ pub const CPU = struct {
                 reg.setR16(.{ .r16_stk = arg.r16stk }, val);
             },
             .push_r16stk => |arg| {
-                const r16 = self.registers.loadR16(.{ .r16_stk = arg.r16stk });
+                const r16 = self.reg.loadR16(.{ .r16_stk = arg.r16stk });
                 mem.push(r16);
                 cycles += 8;
                 if (arg.r16stk == .af) {
