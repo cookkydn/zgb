@@ -13,7 +13,7 @@ pub const Sprite = packed struct(u32) {
         priority: bool,
     },
 
-    pub fn fromOAM(oam: *const [4]u8) Sprite {
+    pub fn fromOam(oam: *const [4]u8) Sprite {
         const raw = std.mem.readInt(u32, oam, .little);
         return @bitCast(raw);
     }

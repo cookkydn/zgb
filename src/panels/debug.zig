@@ -117,7 +117,7 @@ pub const DebugPanel = struct {
             ig.igSeparator();
 
             ig.igText("LCDC: %s", (std.fmt.bufPrintZ(&buf, "{b:0>8}", .{gb.ppu.mem.lcdc}) catch unreachable).ptr);
-            ig.igText("STAT: %s", (std.fmt.bufPrintZ(&buf, "{b:0>8}", .{gb.ppu.mem.stat}) catch unreachable).ptr); // Très important pour voir le Mode (0-3)
+            ig.igText("STAT: %s", (std.fmt.bufPrintZ(&buf, "{b:0>8}", .{gb.ppu.mem.stat}) catch unreachable).ptr);
 
             ig.igSeparator();
             ig.igText("LY:   %03d (0x%02X)", gb.ppu.mem.ly, gb.ppu.mem.ly);

@@ -8,6 +8,7 @@ const Bus = @import("../memory/bus.zig").Bus;
 const Sprite = @import("sprite.zig").Sprite;
 const PpuMem = @import("ppu_mem.zig").PpuMem;
 const Gameboy = @import("../root.zig").Gameboy;
+const Background = @import("background.zig").Background;
 
 const SCREEN_HEIGHT = constants.screen_height;
 const SCREEN_WIDTH = constants.screen_width;
@@ -15,6 +16,7 @@ const SCREEN_WIDTH = constants.screen_width;
 pub const Ppu = struct {
     mem: PpuMem,
     allocator: std.mem.Allocator,
+    bg: Background = .{},
 
     frame_buffer: [SCREEN_HEIGHT * SCREEN_WIDTH]u32 = .{0} ** (SCREEN_HEIGHT * SCREEN_WIDTH),
     dots: u16 = 0,
@@ -85,7 +87,8 @@ pub const Ppu = struct {
     }
 
     fn renderScanLine(self: *Ppu) void {
-        const absolute_y: u16 = (@as(u16, self.mem.ly) + @as(u16, self.mem.scy)) % 256;
+        const ly = @as(u16, self.mem.ly);
+        const absolute_y: u16 = (ly + @as(u16, self.mem.scy)) % 256;
         const tile_y: u16 = absolute_y / 8;
         const offset_y: u16 = absolute_y % 8;
         for (0..SCREEN_WIDTH) |x| {
@@ -93,15 +96,14 @@ pub const Ppu = struct {
             const tile_x: u16 = absolute_x / 8;
             const offset_x: u16 = absolute_x % 8;
 
-            const tile_addr = self.getBGTileMapArea() + (tile_y * 32) + tile_x;
-            const tile_index = self.mem.vram[tile_addr - 0x8000];
-            const pixel_data = self.getBackgroundPixelData(tile_index, offset_x, offset_y);
+            const tile = self.bg.getTileAt(tile_x, tile_y);
+            const pixel_data = tile.getPixelAt(offset_x, offset_y);
             const pixel_color = self.getColorByBgPalette(pixel_data);
             self.putPixel(x, self.mem.ly, pixel_color);
         }
         if (self.mem.lcdc & 0x02 > 0) {
             for (0..40) |i| {
-                const sprite = Sprite.fromOAM(self.mem.oam[i * 4 .. (i * 4) + 4][0..4]);
+                const sprite = Sprite.fromOam(self.mem.oam[i * 4 .. (i * 4) + 4][0..4]);
                 if (sprite.y_pos > self.mem.ly + 8 and sprite.y_pos <= self.mem.ly + 16) {
                     const lsb = self.mem.vram[@as(u16, sprite.tile_index) * 16 + (if (sprite.flags.y_flip) 8 - (self.mem.ly - (sprite.y_pos - 16)) else self.mem.ly - (sprite.y_pos - 16)) * 2];
                     const msb = self.mem.vram[@as(u16, sprite.tile_index) * 16 + (if (sprite.flags.y_flip) 8 - (self.mem.ly - (sprite.y_pos - 16)) else self.mem.ly - (sprite.y_pos - 16)) * 2 + 1];
@@ -120,31 +122,6 @@ pub const Ppu = struct {
         }
     }
 
-    fn getBackgroundPixelData(self: *Ppu, tile_index: u8, x: u16, y: u16) u2 {
-        std.debug.assert(x < 8 and y < 8);
-        const addressing = self.getAddressingMode();
-
-        const tile_addr: u16 = addr: switch (addressing) {
-            .SIGNED => {
-                const tile_id: i8 = @bitCast(tile_index);
-                const offset: i16 = @as(i16, tile_id) * 16;
-                break :addr 0x9000 +% @as(u16, @bitCast(offset));
-            },
-            .UNSIGNED => 0x8000 + (@as(u16, tile_index) * 16),
-        };
-
-        const vram_offset = tile_addr - 0x8000;
-
-        const lsb = self.mem.vram[vram_offset + (y * 2)];
-        const msb = self.mem.vram[vram_offset + (y * 2) + 1];
-
-        const bit_index: u3 = @truncate(7 - x);
-        const lsb_bit = (lsb >> bit_index) & 1;
-        const msb_bit = (msb >> bit_index) & 1;
-
-        return @as(u2, @truncate((msb_bit << 1) | lsb_bit));
-    }
-
     fn putPixel(self: *Ppu, x: usize, y: usize, color_id: u2) void {
         if (x >= SCREEN_WIDTH or y >= SCREEN_HEIGHT) return;
 
@@ -158,14 +135,6 @@ pub const Ppu = struct {
         };
 
         self.frame_buffer[index] = color_argb;
-    }
-
-    inline fn getBGTileMapArea(self: *Ppu) u16 {
-        return if (self.mem.lcdc & 8 > 0) 0x9C00 else 0x9800;
-    }
-
-    inline fn getAddressingMode(self: *Ppu) AddressingMode {
-        return if (self.mem.lcdc & 16 > 0) .UNSIGNED else .SIGNED;
     }
 
     inline fn getColorByBgPalette(self: *Ppu, color_id: u2) u2 {
@@ -211,5 +180,12 @@ pub const Ppu = struct {
         v_blank = 1,
     };
 
-    const AddressingMode = enum { SIGNED, UNSIGNED };
+    pub const AddressingMode = enum {
+        SIGNED,
+        UNSIGNED,
+
+        pub fn getAddressingMode(lcdc: u8) AddressingMode {
+            return if (lcdc & 0x10 > 0) .UNSIGNED else .SIGNED;
+        }
+    };
 };

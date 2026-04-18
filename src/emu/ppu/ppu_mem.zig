@@ -92,8 +92,13 @@ pub const PpuMem = struct {
     }
 
     pub fn read_vram(self: *@This(), addr: u16) u8 {
+        return self.read_vram_slice(addr, 1)[0];
+    }
+
+    pub fn read_vram_slice(self: *PpuMem, addr: u16, length: u16) []u8 {
         // TODO CGB VRAM Banking
-        return self.vram[addr - 0x8000];
+        const addr_offset = addr - 0x8000;
+        return self.vram[addr_offset..(addr_offset + length)];
     }
 
     /// Handle writes for the memory region `0xFF40` to `0xFF4B`
