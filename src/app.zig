@@ -5,6 +5,7 @@ const Texture = @import("ui/texture.zig").Texture;
 const LayoutManager = @import("ui/layout.zig").LayoutManager;
 const RomBrowser = @import("panels/rom-browser.zig").RomBrowser;
 const SettingsPanel = @import("panels/settings.zig").SettingsPanel;
+const DebugPanel = @import("panels/debug.zig").DebugPanel;
 const menu = @import("ui/menu.zig");
 
 const builtin = @import("builtin");
@@ -64,6 +65,7 @@ pub const AppState = struct {
         });
         ig.igGetIO().*.ConfigFlags |= ig.ImGuiConfigFlags_DockingEnable;
         self.gfx.screen_tex = Texture.init(160, 144);
+        self.panels.debug.setBackendName();
     }
 
     pub fn deinit(self: *AppState) void {
@@ -266,11 +268,13 @@ pub const LayoutState = struct {
 pub const PanelsState = struct {
     rom_browser: RomBrowser,
     settings: SettingsPanel,
+    debug: DebugPanel,
 
     pub fn init(all: Allocator) PanelsState {
         return .{
             .rom_browser = RomBrowser.init(all),
             .settings = SettingsPanel{},
+            .debug = DebugPanel.init(),
         };
     }
 
@@ -282,6 +286,7 @@ pub const PanelsState = struct {
         const app = getApp(self, "panels");
         self.rom_browser.draw(app);
         self.settings.draw(app);
+        self.debug.draw(app);
     }
 };
 

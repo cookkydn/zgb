@@ -8,15 +8,16 @@ pub const LayoutManager = struct {
         pub const cpu = "État du CPU (Registres)";
         pub const ppu = "Inspecteur PPU (Vidéo)";
         pub const controls = "Controls";
+        pub const debug = "Debug";
     };
 
     pub const LayoutType = enum {
         Default,
+        Debug,
         None,
     };
 
     pub fn applyLayout(dockspace_id: ig.ImGuiID, layout_type: LayoutType, app: *AppState) void {
-        _ = app;
         DockBuilder.remove_node(dockspace_id);
         const actual_dock_id = DockBuilder.add_node(dockspace_id);
 
@@ -33,6 +34,14 @@ pub const LayoutManager = struct {
                 // Without this the screen is not docking idk why
                 _ = DockBuilder.split_node(&center, ig.ImGuiDir_Down, 0);
                 DockBuilder.dock_window(Panels.screen, center);
+
+                app.panels.debug.visible = false;
+            },
+            .Debug => {
+                const left = DockBuilder.split_node(&center, ig.ImGuiDir_Left, 0.20);
+                DockBuilder.dock_window(Panels.screen, center);
+                DockBuilder.dock_window(Panels.debug, left);
+                app.panels.debug.visible = true;
             },
             .None => {},
         }

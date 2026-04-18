@@ -47,6 +47,9 @@ fn draw_view_menu(app: *AppState) void {
         if (ig.igMenuItem("Default")) {
             app.layout.set_layout = .Default;
         }
+        if (ig.igMenuItem("Debug")) {
+            app.layout.set_layout = .Debug;
+        }
         ig.igEndMenu();
     }
 }

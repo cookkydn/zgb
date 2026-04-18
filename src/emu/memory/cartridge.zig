@@ -48,7 +48,7 @@ pub const Cartridge = struct {
             .title = title,
             .mbc_type = mbc_type,
             .allocator = allocator,
-            .filename = filename,
+            .filename = allocator.dupeZ(u8, filename) catch unreachable,
             .rom = rom,
             .ram = ram,
         };
