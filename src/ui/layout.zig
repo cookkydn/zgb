@@ -4,10 +4,7 @@ const AppState = @import("../app.zig").AppState;
 pub const LayoutManager = struct {
     pub const Panels = struct {
         pub const screen = "Écran";
-        pub const disasm = "Désassembleur";
-        pub const cpu = "État du CPU (Registres)";
-        pub const ppu = "Inspecteur PPU (Vidéo)";
-        pub const controls = "Controls";
+        pub const vram = "Vram viewer";
         pub const debug = "Debug";
     };
 
@@ -36,12 +33,16 @@ pub const LayoutManager = struct {
                 DockBuilder.dock_window(Panels.screen, center);
 
                 app.panels.debug.visible = false;
+                app.panels.vram.visible = false;
             },
             .Debug => {
                 const left = DockBuilder.split_node(&center, ig.ImGuiDir_Left, 0.20);
+                const right = DockBuilder.split_node(&center, ig.ImGuiDir_Right, 0.20);
                 DockBuilder.dock_window(Panels.screen, center);
                 DockBuilder.dock_window(Panels.debug, left);
+                DockBuilder.dock_window(Panels.vram, right);
                 app.panels.debug.visible = true;
+                app.panels.vram.visible = true;
             },
             .None => {},
         }

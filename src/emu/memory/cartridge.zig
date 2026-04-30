@@ -6,7 +6,7 @@ pub const Cartridge = struct {
     title: *const [15]u8,
     mbc_type: MBCType,
     allocator: Allocator,
-    filename: []const u8,
+    filename: [:0]const u8,
     rom: []u8,
     rom_bank: u5 = 1,
     ram: []u8,
@@ -42,13 +42,14 @@ pub const Cartridge = struct {
         };
         const rom: []u8 = content;
         const ram: []u8 = allocator.alloc(u8, ram_size) catch @panic("Out of memory");
+        const filename_copy = allocator.dupeZ(u8, filename) catch unreachable;
         @memset(ram, 0);
 
         return Cartridge{
             .title = title,
             .mbc_type = mbc_type,
             .allocator = allocator,
-            .filename = allocator.dupeZ(u8, filename) catch unreachable,
+            .filename = filename_copy,
             .rom = rom,
             .ram = ram,
         };
@@ -57,5 +58,6 @@ pub const Cartridge = struct {
     pub fn deinit(self: Cartridge) void {
         self.allocator.free(self.rom);
         self.allocator.free(self.ram);
+        self.allocator.free(self.filename);
     }
 };

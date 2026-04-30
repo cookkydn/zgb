@@ -6,6 +6,7 @@ const LayoutManager = @import("ui/layout.zig").LayoutManager;
 const RomBrowser = @import("panels/rom-browser.zig").RomBrowser;
 const SettingsPanel = @import("panels/settings.zig").SettingsPanel;
 const DebugPanel = @import("panels/debug.zig").DebugPanel;
+const VramViewer = @import("panels/vram-viewer.zig").VramViewer;
 const menu = @import("ui/menu.zig");
 
 const builtin = @import("builtin");
@@ -65,6 +66,7 @@ pub const AppState = struct {
         });
         ig.igGetIO().*.ConfigFlags |= ig.ImGuiConfigFlags_DockingEnable;
         self.gfx.screen_tex = Texture.init(160, 144);
+        self.panels.vram.tiles_tex = Texture.init(192, 128);
         self.panels.debug.setBackendName();
     }
 
@@ -142,6 +144,7 @@ pub const Emulator = struct {
     gb: emu.Gameboy,
     pause: bool = true,
     is_overloaded: bool = false,
+    skip_boot: bool = true,
     overload_count: u32 = 0,
     cycle_acc: f64 = 0,
     volume: f32 = 0.1,
@@ -196,6 +199,19 @@ pub const Emulator = struct {
 
     pub fn frameEmu(self: *Emulator) void {
         if (!self.pause) {
+            while (self.skip_boot and self.gb.bus.is_bios) {
+                var cycles_taken: u16 = 4;
+                if (!self.gb.cpu.state.halted) {
+                    const instr = emu.Instruction.fromBus(&self.gb.bus);
+                    cycles_taken = self.gb.cpu.execute_instruction(instr);
+                }
+                cycles_taken += self.gb.cpu.int.handleInterrupts();
+                self.gb.ppu.tick(cycles_taken);
+                self.gb.timer.tick(cycles_taken);
+                self.gb.apu.tick(cycles_taken);
+                self.gb.apu.buffer_index = 0;
+            }
+
             self.cycle_acc += sapp.frameDuration() * cpu_freq;
             if (self.cycle_acc > cpu_freq / 10.0) {
                 self.cycle_acc /= 10;
@@ -268,6 +284,7 @@ pub const LayoutState = struct {
 pub const PanelsState = struct {
     rom_browser: RomBrowser,
     settings: SettingsPanel,
+    vram: VramViewer,
     debug: DebugPanel,
 
     pub fn init(all: Allocator) PanelsState {
@@ -275,6 +292,7 @@ pub const PanelsState = struct {
             .rom_browser = RomBrowser.init(all),
             .settings = SettingsPanel{},
             .debug = DebugPanel.init(),
+            .vram = VramViewer{},
         };
     }
 
@@ -287,6 +305,7 @@ pub const PanelsState = struct {
         self.rom_browser.draw(app);
         self.settings.draw(app);
         self.debug.draw(app);
+        self.vram.draw(app);
     }
 };
 

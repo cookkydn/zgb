@@ -9,6 +9,7 @@ const Sprite = @import("sprite.zig").Sprite;
 const PpuMem = @import("ppu_mem.zig").PpuMem;
 const Gameboy = @import("../root.zig").Gameboy;
 const Background = @import("background.zig").Background;
+const Window = @import("./window.zig").Window;
 
 const SCREEN_HEIGHT = constants.screen_height;
 const SCREEN_WIDTH = constants.screen_width;
@@ -17,6 +18,7 @@ pub const Ppu = struct {
     mem: PpuMem,
     allocator: std.mem.Allocator,
     bg: Background = .{},
+    window: Window = .{},
 
     frame_buffer: [SCREEN_HEIGHT * SCREEN_WIDTH]u32 = .{0} ** (SCREEN_HEIGHT * SCREEN_WIDTH),
     dots: u16 = 0,
@@ -91,15 +93,22 @@ pub const Ppu = struct {
         const absolute_y: u16 = (ly + @as(u16, self.mem.scy)) % 256;
         const tile_y: u16 = absolute_y / 8;
         const offset_y: u16 = absolute_y % 8;
+        self.window.newLine();
         for (0..SCREEN_WIDTH) |x| {
-            const absolute_x: u16 = (@as(u16, @truncate(x)) + @as(u16, self.mem.scx)) % 256;
-            const tile_x: u16 = absolute_x / 8;
-            const offset_x: u16 = absolute_x % 8;
-
-            const tile = self.bg.getTileAt(tile_x, tile_y);
-            const pixel_data = tile.getPixelAt(offset_x, offset_y);
-            const pixel_color = self.getColorByBgPalette(pixel_data);
-            self.putPixel(x, self.mem.ly, pixel_color);
+            if (!self.bgAndWindowEnable()) {
+                self.putPixel(x, self.mem.ly, 0);
+            } else {
+                const absolute_x: u16 = (@as(u16, @truncate(x)) + @as(u16, self.mem.scx)) % 256;
+                const tile_x: u16 = absolute_x / 8;
+                const offset_x: u16 = absolute_x % 8;
+                const tile = self.bg.getTileAt(tile_x, tile_y);
+                const pixel_data = tile.getPixelAt(offset_x, offset_y);
+                var pixel_color = self.getColorByBgPalette(pixel_data);
+                if (self.window.getPixelColorAt(absolute_x, absolute_y)) |pixel| {
+                    pixel_color = self.getColorByBgPalette(pixel);
+                }
+                self.putPixel(x, self.mem.ly, pixel_color);
+            }
         }
         if (self.mem.lcdc & 0x02 > 0) {
             for (0..40) |i| {
@@ -114,7 +123,7 @@ pub const Ppu = struct {
                         const color_index = @as(u2, @truncate((msb_bit << 1) | lsb_bit));
                         const color = self.getColorByObjPalette(color_index, sprite.flags.dmg_palette);
                         if (color_index != 0) {
-                            self.putPixel(sprite.x_pos - 8 + j, self.mem.ly, color);
+                            self.putPixel(sprite.x_pos -| 8 + j, self.mem.ly, color);
                         }
                     }
                 }
@@ -171,6 +180,10 @@ pub const Ppu = struct {
         for (0..SCREEN_HEIGHT * SCREEN_WIDTH) |i| {
             self.frame_buffer[i] = constants.argb_color_palette.white_off;
         }
+    }
+
+    pub fn bgAndWindowEnable(self: *Ppu) bool {
+        return self.mem.lcdc & 1 == 1;
     }
 
     pub const Mode = enum(u2) {

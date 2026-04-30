@@ -65,26 +65,25 @@ pub const Interrupts = struct {
         }
 
         if (int_mask == 0) return 0;
-        var cycles: u16 = 8;
         ime.* = .DISABLED;
 
         if (int_mask & v_blank_mask != 0) {
             self.if_reg &= ~v_blank_mask;
-            cycles += cpu.execute_instruction(.{ .call_imm16 = .{ .imm16 = v_blank_src } });
+            _ = cpu.execute_instruction(.{ .call_imm16 = .{ .imm16 = v_blank_src } });
         } else if (int_mask & stat_mask != 0) {
             self.if_reg &= ~stat_mask;
-            cycles += cpu.execute_instruction(.{ .call_imm16 = .{ .imm16 = stat_src } });
+            _ = cpu.execute_instruction(.{ .call_imm16 = .{ .imm16 = stat_src } });
         } else if (int_mask & timer_mask != 0) {
             self.if_reg &= ~timer_mask;
-            cycles += cpu.execute_instruction(.{ .call_imm16 = .{ .imm16 = timer_src } });
+            _ = cpu.execute_instruction(.{ .call_imm16 = .{ .imm16 = timer_src } });
         } else if (int_mask & serial_mask != 0) {
             self.if_reg &= ~serial_mask;
-            cycles += cpu.execute_instruction(.{ .call_imm16 = .{ .imm16 = serial_src } });
+            _ = cpu.execute_instruction(.{ .call_imm16 = .{ .imm16 = serial_src } });
         } else if (int_mask & joypad_mask != 0) {
             self.if_reg &= ~joypad_mask;
-            cycles += cpu.execute_instruction(.{ .call_imm16 = .{ .imm16 = joypad_src } });
+            _ = cpu.execute_instruction(.{ .call_imm16 = .{ .imm16 = joypad_src } });
         }
-        return cycles;
+        return 20;
     }
 
     pub fn request_vblank(self: *Interrupts) void {

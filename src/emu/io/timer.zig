@@ -44,6 +44,8 @@ pub const Timer = struct {
     div_counter: u16 = 0,
     /// Internal counter, have four times the precision of the tima counter
     tima_counter: u32 = 0,
+    /// Internal counter, used to delay tima overflow interrupt by 4 T-state
+    tima_overflow_delay: u16 = 0,
 
     /// Updates the internal state of the console's Timer.
     ///
@@ -60,11 +62,19 @@ pub const Timer = struct {
     /// 2. **The TIMA (Timer Counter) register:**
     ///     If the Timer is enabled, it increments at the frequency configured by `tac`.
     ///     When it overflow, two things happen:
+    ///     - It wait 4 T-states
     ///     - `tima` is reset with the modulo value stored in `tma`.
     ///     - A Timer interrupt is requested.
     pub fn tick(self: *Timer, cycles: u16) void {
         const int = &Gameboy.getGB("timer", self).int;
         self.div_counter += cycles;
+        if (self.tima_overflow_delay != 0) {
+            self.tima_overflow_delay -|= cycles;
+            if (self.tima_overflow_delay == 0) {
+                int.request_timer();
+                self.tima = self.tma;
+            }
+        }
         while (self.div_counter >= 256) {
             self.div_counter -= 256;
             self.div +%= 1;
@@ -78,8 +88,7 @@ pub const Timer = struct {
                 self.tima_counter -= freq;
 
                 if (self.tima == 255) {
-                    self.tima = self.tma;
-                    int.request_timer();
+                    self.tima_overflow_delay = 4;
                 } else {
                     self.tima += 1;
                 }

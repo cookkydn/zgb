@@ -11,5 +11,16 @@ pub const SettingsPanel = struct {
         defer ig.igEnd();
 
         _ = ig.igSliderFloat("Volume", &app.emu.volume, 0, 1);
+        ig.igText("Skip bios");
+        ig.igSameLine();
+        if (app.emu.skip_boot) {
+            if (ig.igButton("true")) {
+                app.emu.skip_boot = false;
+            }
+        } else {
+            if (ig.igButton("false")) {
+                app.emu.skip_boot = true;
+            }
+        }
     }
 };

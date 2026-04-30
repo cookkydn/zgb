@@ -45,7 +45,7 @@ pub const Bus = struct {
             0x2000...0x3FFF => {
                 switch (self.cartridge.?.mbc_type) {
                     .no_mbc => return,
-                    .mbc_1 => self.cartridge.?.rom_bank = @truncate((value & 0x1F)),
+                    .mbc_1, .mbc_1_with_ram => self.cartridge.?.rom_bank = @truncate((value & 0x1F)),
                     .other => return,
                 }
             },
@@ -80,7 +80,10 @@ pub const Bus = struct {
                 gb.timer.div = 0;
                 gb.timer.div_counter = 0;
             },
-            0xFF05 => gb.timer.tima = value,
+            0xFF05 => {
+                gb.timer.tima = value;
+                gb.timer.tima_counter = 0;
+            },
             0xFF06 => gb.timer.tma = value,
             0xFF07 => gb.timer.tac = value,
             0xFF08...0xFF0E => {}, // unused
@@ -148,7 +151,7 @@ pub const Bus = struct {
             0x4000...0x7FFF => {
                 switch (self.cartridge.?.mbc_type) {
                     .no_mbc => return self.cartridge.?.rom[address],
-                    .mbc_1 => {
+                    .mbc_1, .mbc_1_with_ram => {
                         var bank: usize = self.cartridge.?.rom_bank;
                         if (bank == 0) bank = 1;
 
@@ -168,7 +171,11 @@ pub const Bus = struct {
                 }
             },
             0x8000...0x9FFF => return gb.ppu.mem.read_vram(address),
-            0xA000...0xBFFF => return 0xFF, // RAM (TODO Implement MBC With RAM)
+            0xA000...0xBFFF => {
+                if (self.cartridge.?.ram.len != 0) {
+                    return self.cartridge.?.ram[address - 0xA000];
+                } else return 0xFF;
+            },
             0xC000...0xCFFF => return self.wram[address - 0xC000],
             0xD000...0xDFFF => return self.wram[address - 0xC000],
             0xE000...0xFDFF => return self.wram[address - 0xE000], // ECHO RAM
