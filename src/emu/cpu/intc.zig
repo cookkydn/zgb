@@ -105,3 +105,57 @@ pub fn requestSerial(self: *Intc) void {
 pub fn requestJoypad(self: *Intc) void {
     self.if_reg |= joypad_mask;
 }
+
+const std = @import("std");
+const expect = std.testing.expect;
+
+test "Intc - initial state" {
+    const intc = Intc{};
+
+    try expect(intc.ie_reg == 0xE0);
+    try expect(intc.if_reg == 0xE0);
+}
+
+test "Intc - hasPending" {
+    var intc = Intc{};
+
+    intc.ie_reg |= stat_mask;
+    intc.requestStat();
+    try expect(intc.hasPending());
+}
+
+test "Intc - request interrupt" {
+    var intc = Intc{};
+
+    intc.requestVblank();
+    try expect(intc.if_reg == 0xE1);
+    intc.requestStat();
+    try expect(intc.if_reg == 0xE3);
+    intc.requestTimer();
+    try expect(intc.if_reg == 0xE7);
+    intc.requestSerial();
+    try expect(intc.if_reg == 0xEF);
+    intc.requestJoypad();
+    try expect(intc.if_reg == 0xFF);
+}
+
+test "Intc - acknowledge" {
+    var intc = Intc{};
+
+    // Do not acknowledge an interrupt not enabled
+    intc.requestJoypad();
+    try expect(intc.acknowledge() == null);
+
+    // Return the correct address and remove the flag
+    intc.ie_reg |= stat_mask;
+    intc.requestStat();
+    try expect(intc.acknowledge() == stat_src);
+    try expect(intc.if_reg == 0xF0);
+
+    // Acknowledge only one interrupt at a time
+    intc.ie_reg |= v_blank_mask;
+    intc.requestVblank();
+    intc.requestStat();
+    try expect(intc.acknowledge() == v_blank_src);
+    try expect(intc.if_reg == 0xF2);
+}
