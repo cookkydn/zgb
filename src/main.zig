@@ -6,12 +6,13 @@ const sapp = sokol.app;
 
 var app_ref: *AppState = undefined;
 
-pub fn main() void {
+pub fn main(init: std.process.Init) void {
     const allocator = AppState.alloc_impl.allocator();
-    var app = AppState.init(allocator);
+    const io = init.io;
+    var app = AppState.init(allocator, io);
     app_ref = &app;
     sapp.run(.{
-        .init_userdata_cb = init,
+        .init_userdata_cb = init_app,
         .frame_userdata_cb = appWrapper("frame", null),
         .cleanup_userdata_cb = appWrapper("deinit", null),
         .event_userdata_cb = appWrapper("event", AppState.Event),
@@ -28,7 +29,7 @@ pub fn main() void {
     });
 }
 
-export fn init(user_data: ?*anyopaque) void {
+export fn init_app(user_data: ?*anyopaque) void {
     const app: *AppState = @ptrCast(@alignCast(user_data.?));
     app.initSokol();
 }

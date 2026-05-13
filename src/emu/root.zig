@@ -31,9 +31,9 @@ pub const Gameboy = struct {
     timer: Timer,
     joypad: Joypad,
 
-    pub fn init(all: Allocator) Gameboy {
+    pub fn init(all: Allocator, io: std.Io) Gameboy {
         var bus = Bus.init();
-        bus.loadBios() catch |err| {
+        bus.loadBios(io) catch |err| {
             std.debug.panic("Failed to load bios: {s}\n", .{@errorName(err)});
         };
         return .{

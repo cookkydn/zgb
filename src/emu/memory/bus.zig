@@ -250,13 +250,12 @@ pub const Bus = struct {
         self.invalidate_cache = false;
     }
 
-    pub fn loadBios(self: *Bus) error{BiosNotFound}!void {
+    pub fn loadBios(self: *Bus, io: std.Io) !void {
         const gb = Gameboy.getGB("bus", self);
         var model = gb.cpu.model;
         const path = switch (model) {
             .dmg_0 => "./bios/dmg0.rom",
         };
-
-        self.bios = std.fs.cwd().readFileAlloc(self.allocator, path, model.biosSize()) catch return error.BiosNotFound;
+        self.bios = try std.Io.Dir.cwd().readFileAlloc(io, path, self.allocator, .limited(model.biosSize() + 1));
     }
 };

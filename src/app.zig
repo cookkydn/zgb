@@ -21,7 +21,7 @@ const sgl = sokol.gl;
 const sapp = sokol.app;
 const sglue = sokol.glue;
 const simgui = sokol.imgui;
-const sgimgui = sokol.sgimgui;
+const sgimgui = sokol.gfximgui;
 const sgaudio = sokol.audio;
 
 // -- Global state --
@@ -31,6 +31,7 @@ pub const AppState = struct {
     gfx: GfxState,
     layout: LayoutState,
     panels: PanelsState,
+    io: std.Io,
 
     pub var alloc_impl = switch (builtin.mode) {
         .Debug, .ReleaseSafe => std.heap.DebugAllocator(.{}).init,
@@ -39,13 +40,14 @@ pub const AppState = struct {
 
     pub const Event = [*c]const sapp.Event;
 
-    pub fn init(all: Allocator) AppState {
+    pub fn init(all: Allocator, io: std.Io) AppState {
         return .{
             .all = all,
-            .emu = Emulator.init(all),
+            .emu = Emulator.init(all, io),
             .gfx = GfxState.init(),
             .layout = LayoutState.init(),
-            .panels = PanelsState.init(all),
+            .panels = PanelsState.init(all, io),
+            .io = io,
         };
     }
 
@@ -78,7 +80,7 @@ pub const AppState = struct {
 
         // -- Check for leaks --
         if (builtin.mode == .Debug) {
-            if (alloc_impl.detectLeaks()) {
+            if (alloc_impl.detectLeaks() > 0) {
                 @panic("Memory leaked");
             }
         } else {
@@ -148,11 +150,12 @@ pub const Emulator = struct {
     overload_count: u32 = 0,
     cycle_acc: f64 = 0,
     volume: f32 = 0.1,
+    io: std.Io,
 
     const cpu_freq = 4194304.0;
 
-    pub fn init(all: Allocator) Emulator {
-        return .{ .gb = emu.Gameboy.init(all) };
+    pub fn init(all: Allocator, io: std.Io) Emulator {
+        return .{ .gb = emu.Gameboy.init(all, io), .io = io };
     }
 
     pub fn deinit(self: *Emulator) void {
@@ -179,7 +182,7 @@ pub const Emulator = struct {
             ig.igSetCursorPosX(ig.igGetCursorPosX() + cursor_x);
             ig.igSetCursorPosY(ig.igGetCursorPosY() + cursor_y);
             ig.igImage(
-                .{ ._TexID = tex_id },
+                .{ ._TexID = tex_id, ._TexData = null },
                 display_size,
             );
         }
@@ -266,9 +269,9 @@ pub const PanelsState = struct {
     vram: VramViewer,
     debug: DebugPanel,
 
-    pub fn init(all: Allocator) PanelsState {
+    pub fn init(all: Allocator, io: std.Io) PanelsState {
         return .{
-            .rom_browser = RomBrowser.init(all),
+            .rom_browser = RomBrowser.init(all, io),
             .settings = SettingsPanel{},
             .debug = DebugPanel.init(),
             .vram = VramViewer{},

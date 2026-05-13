@@ -38,6 +38,7 @@ pub const VramViewer = struct {
         self.tiles_tex.update(&vram_buffer);
         ig.igImage(.{
             ._TexID = self.tiles_tex.imTextureId(),
+            ._TexData = null,
         }, .{
             .x = 192,
             .y = 128,

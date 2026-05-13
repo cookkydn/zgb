@@ -13,12 +13,12 @@ pub const Cartridge = struct {
     ram_bank: u5 = 1,
     mode: u1 = 0,
 
-    pub fn fromFile(filename: []const u8, allocator: Allocator) error{ CartridgeNotFound, CartridgeTooBig }!Cartridge {
-        const file = std.fs.cwd().openFile(filename, .{
+    pub fn fromFile(filename: []const u8, allocator: Allocator, io: std.Io) error{ CartridgeNotFound, CartridgeTooBig }!Cartridge {
+        const file = std.Io.Dir.cwd().openFile(io, filename, .{
             .mode = .read_only,
         }) catch return error.CartridgeNotFound;
-        defer file.close();
-        const content = std.fs.cwd().readFileAlloc(allocator, filename, 0x400000) catch |err| {
+        defer file.close(io);
+        const content = std.Io.Dir.cwd().readFileAlloc(io, filename, allocator, .limited(0x400000)) catch |err| {
             if (err == error.FileTooBig) return error.CartridgeTooBig;
             return error.CartridgeNotFound;
         };

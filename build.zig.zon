@@ -2,19 +2,19 @@
     .name = .zgb,
     .version = "0.0.1",
     .fingerprint = 0x2f27c98082d44820, // Do not change.
-    .minimum_zig_version = "0.15.2",
+    .minimum_zig_version = "0.16.0",
     .dependencies = .{
         .sokol = .{
-            .url = "git+https://github.com/floooh/sokol-zig.git#de5906fb0f81f96e92c1c67a2b8a24dc50872207",
-            .hash = "sokol-0.1.0-pb1HK9ngNgD_m7L3HpbsyJ-jHRGVzcd672pjJDEPBQWh",
+            .url = "git+https://github.com/floooh/sokol-zig.git#8b1a651e6b8e76af3063a4094a5935432eb8afe2",
+            .hash = "sokol-0.1.0-pb1HK1lhNwCdIF2-WujvJqi1YoK7Qvgm14Ywmup5C6_q",
         },
         .cimgui = .{
-            .url = "git+https://github.com/floooh/dcimgui.git#086439ad8d4c8423510ce2c4a159536454883501",
-            .hash = "cimgui-0.1.0-44ClkaTclwDXw6Lt2PIKs7YX-d1mu80kEkfyJiCBKM4R",
+            .url = "git+https://github.com/floooh/dcimgui.git#e2f0e0d93adec02743c55940be23ffe286e857f7",
+            .hash = "cimgui-0.1.0-44ClkR8dmgDqqnfloyLE1bUAtl4zSKTT1wxaHSEC0ikV",
         },
         .zlinter = .{
-            .url = "git+https://github.com/kurtwagner/zlinter?ref=0.15.x#bd25a4ddffdb9afb542280b876c25a366faa38d8",
-            .hash = "zlinter-0.0.1-OjQ08ZOnCwBx9meqm2cUjOkYUBeTUpKhQ3ERnVPg6ARc",
+            .url = "git+https://github.com/kurtwagner/zlinter?ref=0.16.x#9b4d67b9725e7137ac876cc628fe5dd2ca5a2681",
+            .hash = "zlinter-0.0.1-OjQ08c7oCwDIwhlde7eDKMACNTsqAhGXy5vB7GdfGobG",
         },
     },
     .paths = .{

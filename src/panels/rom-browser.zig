@@ -9,13 +9,15 @@ pub const RomBrowser = struct {
     files: std.ArrayList(BrowserEntry),
     selected_idx: ?usize = null,
     current_path: [:0]const u8,
+    io: std.Io,
 
-    pub fn init(allocator: std.mem.Allocator) RomBrowser {
+    pub fn init(allocator: std.mem.Allocator, io: std.Io) RomBrowser {
         const current_path: [:0]const u8 = allocator.dupeZ(u8, "./roms") catch @panic("Failed allocate memory");
         return .{
             .allocator = allocator,
             .files = std.ArrayList(BrowserEntry).initCapacity(allocator, 5) catch @panic("Failed allocate memory"),
             .current_path = current_path,
+            .io = io,
         };
     }
 
@@ -42,14 +44,14 @@ pub const RomBrowser = struct {
     pub fn refresh(self: *RomBrowser) void {
         self.clearFiles();
         self.selected_idx = null;
-        var dir = std.fs.cwd().openDir(self.current_path, .{ .iterate = true }) catch |err| {
+        var dir = std.Io.Dir.cwd().openDir(self.io, self.current_path, .{ .iterate = true }) catch |err| {
             std.debug.print("Failed to open folder {s} : {}\n", .{ self.current_path, err });
             return;
         };
-        defer dir.close();
+        defer dir.close(self.io);
 
         var iter = dir.iterate();
-        while (iter.next() catch null) |entry| {
+        while (iter.next(self.io) catch null) |entry| {
             if (entry.kind == .file) {
                 const name = entry.name;
 
@@ -128,7 +130,7 @@ pub const RomBrowser = struct {
     fn loadRom(self: *RomBrowser, app: *AppState, filename: [:0]const u8) void {
         const full_path = std.fmt.allocPrintSentinel(self.allocator, "{s}/{s}", .{ self.current_path, filename }, 0) catch return;
         defer self.allocator.free(full_path);
-        const cart = Cartridge.fromFile(full_path, self.allocator) catch @panic("Failed to open rom");
+        const cart = Cartridge.fromFile(full_path, self.allocator, self.io) catch @panic("Failed to open rom");
         app.emu.gb.bus.cartridge = cart;
         app.emu.pause = false;
         self.visible = false;
