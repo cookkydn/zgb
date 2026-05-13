@@ -71,7 +71,7 @@ pub const Ppu = struct {
                 self.mem.ly += 1;
                 if (self.mem.ly == 144) {
                     self.setMode(.v_blank);
-                    gb.cpu.int.request_vblank();
+                    gb.cpu.int.requestVblank();
                 } else {
                     self.setMode(.oam_scan);
                 }

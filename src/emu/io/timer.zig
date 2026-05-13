@@ -66,12 +66,12 @@ pub const Timer = struct {
     ///     - `tima` is reset with the modulo value stored in `tma`.
     ///     - A Timer interrupt is requested.
     pub fn tick(self: *Timer, cycles: u16) void {
-        const int = &Gameboy.getGB("timer", self).int;
+        const int = &Gameboy.getGB("timer", self).cpu.int;
         self.div_counter += cycles;
         if (self.tima_overflow_delay != 0) {
             self.tima_overflow_delay -|= cycles;
             if (self.tima_overflow_delay == 0) {
-                int.request_timer();
+                int.requestTimer();
                 self.tima = self.tma;
             }
         }

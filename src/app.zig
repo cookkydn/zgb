@@ -208,7 +208,7 @@ pub const Emulator = struct {
                     const instr = emu.Instruction.fromBus(&self.gb.bus);
                     cycles_taken = self.gb.cpu.execute_instruction(instr);
                 }
-                cycles_taken += self.gb.cpu.int.handleInterrupts();
+                cycles_taken += self.gb.cpu.handleInterrupts();
                 self.gb.ppu.tick(cycles_taken);
                 self.gb.timer.tick(cycles_taken);
                 self.gb.apu.tick(cycles_taken);
@@ -231,7 +231,7 @@ pub const Emulator = struct {
                     const instr = emu.Instruction.fromBus(&self.gb.bus);
                     cycles_taken = self.gb.cpu.execute_instruction(instr);
                 }
-                cycles_taken += self.gb.cpu.int.handleInterrupts();
+                cycles_taken += self.gb.cpu.handleInterrupts();
                 self.gb.ppu.tick(cycles_taken);
                 self.gb.timer.tick(cycles_taken);
                 self.gb.apu.tick(cycles_taken);

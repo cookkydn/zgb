@@ -5,14 +5,14 @@ const Bus = @import("../memory/bus.zig").Bus;
 const Registers = @import("registers.zig").Registers;
 const Instruction = @import("./instructions.zig").Instruction;
 const CpuState = @import("state.zig").CpuState;
-const Interrupts = @import("interrupts.zig").Interrupts;
+const Intc = @import("intc.zig");
 const Gameboy = @import("../root.zig").Gameboy;
 
 pub const Cpu = struct {
     model: hardware.GbModel,
     reg: Registers = Registers{},
     state: CpuState = CpuState{},
-    int: Interrupts = Interrupts{},
+    int: Intc = Intc{},
 
     pub fn init(model: hardware.GbModel) Cpu {
         return .{
@@ -611,5 +611,25 @@ pub const Cpu = struct {
             },
         }
         return cycles;
+    }
+
+    pub fn handleInterrupts(self: *Cpu) u16 {
+        if (self.int.hasPending()) {
+            self.state.halted = false;
+        }
+
+        if (self.state.ime == .DISABLED) return 0;
+        if (self.state.ime == .ENABLED_NEXT) {
+            self.state.ime = .ENABLED;
+            return 0;
+        }
+
+        if (self.int.acknowledge()) |src| {
+            self.state.ime = .DISABLED;
+            _ = self.execute_instruction(.{ .call_imm16 = .{ .imm16 = src } });
+
+            return 20;
+        }
+        return 0;
     }
 };

@@ -185,6 +185,7 @@ pub const Bus = struct {
             0xFF01 => 0xFF, //TODO Serial
             0xFF02 => 0xFF, //TODO Serial
             0xFF04 => return gb.timer.div,
+            0xFF05 => return gb.timer.tima,
             0xFF0F => return gb.cpu.int.if_reg,
             0xFF16 => return gb.apu.nr21 | 0x3F,
             0xFF17 => return gb.apu.nr22,

@@ -6,7 +6,6 @@ pub const Bus = @import("memory/bus.zig").Bus;
 pub const Apu = @import("apu/apu.zig").Apu;
 pub const Registers = @import("cpu/registers.zig").Registers;
 pub const Constants = @import("const.zig");
-pub const Interrupts = @import("cpu/interrupts.zig").Interrupts;
 pub const Cartridge = @import("memory/cartridge.zig").Cartridge;
 pub const Timer = @import("io/timer.zig").Timer;
 pub const Joypad = @import("io/joypad.zig").Joypad;
@@ -27,7 +26,6 @@ pub const Gameboy = struct {
     bus: Bus,
     ppu: PPU,
     apu: Apu,
-    int: Interrupts,
     timer: Timer,
     joypad: Joypad,
 
@@ -42,7 +40,6 @@ pub const Gameboy = struct {
             .ppu = PPU.init(.dmg_0, all),
             .bus = bus,
             .apu = Apu.init(all),
-            .int = Interrupts{},
             .timer = Timer{},
             .joypad = Joypad{},
         };
