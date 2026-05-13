@@ -237,27 +237,6 @@ pub const Emulator = struct {
             }
         }
     }
-
-    pub fn printDebugInfo(self: Emulator) void {
-        const print = std.debug.print;
-        print("====== DEBUG REPORT ======\n", .{});
-        if (self.gb.bus.cartridge) |cartridge| {
-            print("=> Cartridge type: {s}\n", .{@tagName(cartridge.mbc_type)});
-            print("=> Cartridge rom size: 0x{x}\n", .{cartridge.rom.len});
-            print("=> Cartridge ram size: 0x{x}\n", .{cartridge.ram.len});
-            print("=> Cartridge rom bank: 0x{x}\n", .{cartridge.rom_bank});
-            print("=> Cartridge ram bank: 0x{x}\n", .{cartridge.ram_bank});
-        } else {
-            print("=> No cartridge\n", .{});
-        }
-        print("=== PERFORMANCE REPORT ===\n", .{});
-        if (self.overload_count > 0) {
-            print("=> Overload count: {}\n", .{self.overload_count});
-        } else {
-            print("=> Never overloaded\n", .{});
-        }
-        print("==========================\n", .{});
-    }
 };
 
 pub const LayoutState = struct {
