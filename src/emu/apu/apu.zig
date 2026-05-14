@@ -33,6 +33,20 @@ pub const Apu = struct {
     /// Period high & control
     nr24: u8 = 0,
 
+    // -- Channel 3 (Wave) --
+    /// Channel DAC enable
+    nr30: u8 = 0,
+    /// Length timer
+    nr31: u8 = 0,
+    /// Output level
+    nr32: u8 = 0,
+    /// Period low
+    nr33: u8 = 0,
+    /// Period high & control
+    nr34: u8 = 0,
+    /// Wave ram
+    wave_pattern: [0x10]u8 = .{0} ** 0x10,
+
     allocator: std.mem.Allocator,
 
     sample_counter: u32 = 0,
@@ -54,6 +68,10 @@ pub const Apu = struct {
     ch2_length_counter: u8 = 0,
     ch2_volume: u8 = 0,
     ch2_env_timer: u8 = 0,
+
+    ch3_length_counter: u9 = 0,
+    ch3_freq_timer: i32 = 0,
+    ch3_duty_step: u8 = 0,
 
     pub fn init(all: std.mem.Allocator) Apu {
         return .{
@@ -165,6 +183,16 @@ pub const Apu = struct {
                     }
                 }
             }
+
+            // --- Canal 3 ---
+            if (self.frame_step % 2 == 0) {
+                if (self.is_ch3_length_enabled() and self.ch3_length_counter > 0) {
+                    self.ch3_length_counter -= 1;
+                    if (self.ch3_length_counter == 0) {
+                        self.nr52 &= 0xFB;
+                    }
+                }
+            }
         }
 
         self.ch1_freq_timer -= @as(i32, ticks);
@@ -177,6 +205,12 @@ pub const Apu = struct {
         while (self.ch2_freq_timer <= 0) {
             self.ch2_freq_timer += (2048 - @as(i32, self.get_ch2_freq())) * 4;
             self.ch2_duty_step = (self.ch2_duty_step + 1) % 8;
+        }
+
+        self.ch3_freq_timer -= @as(i32, ticks);
+        while (self.ch3_freq_timer <= 0) {
+            self.ch3_freq_timer += (2048 - @as(i32, self.get_ch3_freq())) * 2;
+            self.ch3_duty_step = (self.ch3_duty_step + 1) % 32;
         }
 
         self.sample_counter += @as(u32, ticks) * constants.sample_rate;
@@ -196,8 +230,30 @@ pub const Apu = struct {
                 break :blk if (self.get_ch2_wave_duty()[self.ch2_duty_step]) @as(f32, @floatFromInt(self.ch2_volume)) / 15 else 0;
             };
 
-            self.buffer[self.buffer_index] = (ch1_val + ch2_val) / 2;
-            self.buffer[self.buffer_index + 1] = (ch1_val + ch2_val) / 2;
+            const ch3_val: f32 = blk: {
+                if (!self.is_on()) break :blk 0;
+                if (!self.is_ch3_on()) break :blk 0;
+                if (self.nr30 & 0x80 == 0) break :blk 0;
+                var wave: u8 = self.wave_pattern[self.ch3_duty_step / 2];
+                wave = if (self.ch3_duty_step % 2 == 0) wave >> 4 else wave & 0xF;
+                switch (@as(u2, @truncate((self.nr32 >> 5) & 0x3))) {
+                    0b00 => {
+                        wave = 0;
+                    },
+                    0b01 => {},
+                    0b10 => {
+                        wave = wave >> 1;
+                    },
+                    0b11 => {
+                        wave = wave >> 2;
+                    },
+                }
+
+                break :blk @as(f32, @floatFromInt(wave)) / 15;
+            };
+
+            self.buffer[self.buffer_index] = (ch1_val + ch2_val + ch3_val) / 3;
+            self.buffer[self.buffer_index + 1] = (ch1_val + ch2_val + ch3_val) / 3;
             self.buffer_index += 2;
         }
     }
@@ -220,6 +276,13 @@ pub const Apu = struct {
         self.nr23 = 0;
         self.nr24 = 0;
 
+        // Reset channel 3
+        self.nr30 = 0;
+        self.nr31 = 0;
+        self.nr32 = 0;
+        self.nr33 = 0;
+        self.nr34 = 0;
+
         self.nr52 = 0;
     }
 
@@ -229,6 +292,10 @@ pub const Apu = struct {
 
     fn is_ch2_on(self: *Apu) bool {
         return self.nr52 & 0x2 > 0;
+    }
+
+    fn is_ch3_on(self: *Apu) bool {
+        return self.nr52 & 0x4 > 0;
     }
 
     pub fn trigger_ch1(self: *Apu) void {
@@ -243,6 +310,12 @@ pub const Apu = struct {
         if (self.ch2_length_counter == 0) self.ch2_length_counter = 64;
         self.ch2_freq_timer = (2048 - @as(i32, self.get_ch2_freq())) * 4;
         self.ch2_volume = (self.nr22 & 0xF0) >> 4;
+    }
+
+    pub fn trigger_ch3(self: *Apu) void {
+        self.nr52 |= 4;
+        if (self.ch3_length_counter == 0) self.ch3_length_counter = 256;
+        self.ch3_freq_timer = (2048 - @as(i32, self.get_ch3_freq())) * 4;
     }
 
     fn get_ch1_wave_duty(self: *Apu) [8]bool {
@@ -315,6 +388,14 @@ pub const Apu = struct {
 
     fn get_ch2_env_dir(self: *Apu) EnvelopeDir {
         return @enumFromInt(@as(u1, @truncate((self.nr22 & 0x08) >> 3)));
+    }
+
+    fn get_ch3_freq(self: *Apu) u11 {
+        return @as(u11, self.nr33) | (@as(u11, self.nr34 & 0x7) << 8);
+    }
+
+    fn is_ch3_length_enabled(self: *Apu) bool {
+        return self.nr34 & 0x40 != 0;
     }
 };
 

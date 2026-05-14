@@ -1,7 +1,7 @@
 const alu = @import("../cpu/arithmetics.zig");
 const std = @import("std");
 
-const Cartridge = @import("cartridge.zig").Cartridge;
+const Cartridge = @import("cartridge.zig");
 const Ppu = @import("../ppu/ppu.zig").Ppu;
 const Timer = @import("../io/timer.zig").Timer;
 const Joypad = @import("../io/joypad.zig").Joypad;
@@ -110,13 +110,22 @@ pub const Bus = struct {
                 if (value & 0x80 > 0) gb.apu.trigger_ch2();
                 gb.apu.nr24 = alu.maskedWrite(gb.apu.nr24, 0xC7, value);
             },
-            0xFF1A...0xFF25 => gb.apu.audio_registers[addr - 0xFF10] = value,
+            0xFF1A => gb.apu.nr30 = value,
+            0xFF1B => gb.apu.nr31 = value,
+            0xFF1C => gb.apu.nr32 = value,
+            0xFF1D => gb.apu.nr33 = value,
+            0xFF1E => {
+                gb.apu.nr34 = value;
+                if (value & 0x80 > 0) gb.apu.trigger_ch3();
+            },
+            0xFF1F...0xFF25 => gb.apu.audio_registers[addr - 0xFF10] = value,
             0xFF26 => {
                 if (value & 0x80 == 0) gb.apu.turn_off();
 
                 gb.apu.nr52 = alu.maskedWrite(gb.apu.nr52, 0x80, value);
             },
-            0xFF27...0xFF3F => gb.apu.audio_registers[addr - 0xFF10] = value,
+            0xFF27...0xFF2F => gb.apu.audio_registers[addr - 0xFF10] = value,
+            0xFF30...0xFF3F => gb.apu.wave_pattern[addr - 0xFF30] = value,
             0xFF40...0xFF4B => gb.ppu.mem.write_registers(addr, value),
             0xFF4C => {}, // CGB only
             0xFF4D => {}, // CGB only
@@ -192,6 +201,7 @@ pub const Bus = struct {
             0xFF18 => return 0xFF,
             0xFF19 => return gb.apu.nr24 | 0xBF,
             0xFF20 => return 0xFF, // Unused
+            0xFF26 => return gb.apu.nr52,
             0xFF40...0xFF4B => return gb.ppu.mem.read_registers(address),
             0xFF4D => return 0xFF, // CGB only
             0xFF57...0xFF67 => return 0xFF, // Unused
