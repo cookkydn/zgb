@@ -6,7 +6,7 @@ const Allocator = std.mem.Allocator;
 const WORKING_SIZE = 0xFFFF + 1;
 
 pub const Debugger = struct {
-    visible: bool = false,
+    visible: bool = true,
     active: bool = false,
     allocator: Allocator,
     breakpoints: AddressList,

@@ -24,6 +24,14 @@ pub fn build(b: *std.Build) void {
 
     dep_sokol.artifact("sokol_clib").root_module.addIncludePath(dep_cimgui.path(cimgui_conf.include_dir));
 
+    const ui_mod = b.createModule(.{
+        .root_source_file = b.path("src/ui/root.zig"),
+        .imports = &.{
+            .{ .name = "cimgui", .module = dep_cimgui.module(cimgui_conf.module_name) },
+            .{ .name = "sokol", .module = dep_sokol.module("sokol") },
+        },
+    });
+
     const mod_main = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
         .target = target,
@@ -31,6 +39,7 @@ pub fn build(b: *std.Build) void {
         .imports = &.{
             .{ .name = "sokol", .module = dep_sokol.module("sokol") },
             .{ .name = "cimgui", .module = dep_cimgui.module(cimgui_conf.module_name) },
+            .{ .name = "ui", .module = ui_mod },
         },
     });
 

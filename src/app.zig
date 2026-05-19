@@ -1,8 +1,9 @@
 const emu = @import("emu/root.zig");
 const ig = @import("cimgui");
+const ui = @import("ui");
 const Decompiler = @import("decompiler.zig").Decompiler;
-const Texture = @import("ui/texture.zig").Texture;
-const LayoutManager = @import("ui/layout.zig").LayoutManager;
+const Texture = ui.Texture;
+// const LayoutManager = @import("ui/layout.zig").LayoutManager;
 const RomBrowser = @import("panels/rom-browser.zig").RomBrowser;
 const SettingsPanel = @import("panels/settings.zig").SettingsPanel;
 const DebugPanel = @import("panels/debug.zig").DebugPanel;
@@ -29,7 +30,6 @@ pub const AppState = struct {
     all: Allocator,
     emu: Emulator,
     gfx: GfxState,
-    layout: LayoutState,
     panels: PanelsState,
     io: std.Io,
 
@@ -45,7 +45,6 @@ pub const AppState = struct {
             .all = all,
             .emu = Emulator.init(all, io),
             .gfx = GfxState.init(),
-            .layout = LayoutState.init(),
             .panels = PanelsState.init(all, io),
             .io = io,
         };
@@ -67,6 +66,21 @@ pub const AppState = struct {
             .num_channels = 2,
         });
         ig.igGetIO().*.ConfigFlags |= ig.ImGuiConfigFlags_DockingEnable;
+        const style = ig.igGetStyle();
+
+        // Arrondir les fenêtres et les boutons
+        style.*.WindowRounding = 6.0;
+        style.*.FrameRounding = 4.0;
+        style.*.GrabRounding = 4.0; // Pour les sliders
+
+        // Aérer un peu les éléments
+        style.*.ItemSpacing = .{ .x = 8.0, .y = 6.0 };
+        style.*.FramePadding = .{ .x = 6.0, .y = 4.0 };
+
+        // Enlever les bordures épaisses
+        style.*.WindowBorderSize = 0.0;
+        style.*.FrameBorderSize = 0.0;
+
         self.gfx.screen_tex = Texture.init(160, 144);
         self.panels.vram.tiles_tex = Texture.init(192, 128);
         self.panels.debug.setBackendName();
@@ -100,9 +114,9 @@ pub const AppState = struct {
             .delta_time = sapp.frameDuration(),
             .dpi_scale = sapp.dpiScale(),
         });
+        ui.begin();
         menu.draw_menu(self);
         self.emu.frameEmu();
-        self.layout.updateLayout();
         self.emu.drawScreen();
         self.panels.drawPanels();
         self.gfx.render();
@@ -165,12 +179,12 @@ pub const Emulator = struct {
     pub fn drawScreen(emu_state: *Emulator) void {
         var app = getApp(emu_state, "emu");
         app.gfx.screen_tex.update(&app.emu.gb.ppu.frame_buffer);
+        const flags = [_]ui.flags.WindowFlag{ .EmuScreen, .NoDecoration, .NoInputs };
 
-        if (ig.igBegin(LayoutManager.Panels.screen, null, ig.ImGuiWindowFlags_None)) {
-            const tex_id = app.gfx.screen_tex.imTextureId();
+        if (ig.igBegin("Screen", null, ui.flags.combine(flags))) {
             const avail = ig.igGetContentRegionAvail();
             const scale_w = avail.x / 160.0;
-            const scale_h = avail.y / 144.0;
+            const scale_h = (avail.y) / 144.0;
             const scale = @min(scale_w, scale_h);
             const display_size = ig.ImVec2{ .x = 160.0 * scale, .y = 144.0 * scale };
 
@@ -181,10 +195,7 @@ pub const Emulator = struct {
 
             ig.igSetCursorPosX(ig.igGetCursorPosX() + cursor_x);
             ig.igSetCursorPosY(ig.igGetCursorPosY() + cursor_y);
-            ig.igImage(
-                .{ ._TexID = tex_id, ._TexData = null },
-                display_size,
-            );
+            app.gfx.screen_tex.drawSized(display_size.x, display_size.y);
         }
         ig.igEnd();
     }
@@ -239,27 +250,6 @@ pub const Emulator = struct {
                 self.cycle_acc -= @floatFromInt(cycles_taken);
             }
         }
-    }
-};
-
-pub const LayoutState = struct {
-    set_layout: LayoutManager.LayoutType,
-
-    pub fn init() LayoutState {
-        return .{
-            .set_layout = .Default,
-        };
-    }
-
-    pub fn updateLayout(self: *LayoutState) void {
-        const app: *AppState = @alignCast(@fieldParentPtr("layout", self));
-        const viewport = ig.igGetMainViewport();
-        const dockspace_id = ig.igGetID("dockspace");
-        if (self.set_layout != .None) {
-            LayoutManager.applyLayout(dockspace_id, self.set_layout, app);
-            self.set_layout = .None;
-        }
-        _ = ig.igDockSpaceOverViewportEx(dockspace_id, viewport, ig.ImGuiDockNodeFlags_None, null);
     }
 };
 

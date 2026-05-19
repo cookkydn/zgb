@@ -1,7 +1,6 @@
 const AppState = @import("../app.zig").AppState;
-const LayoutManager = @import("../ui/layout.zig").LayoutManager;
 const ig = @import("cimgui");
-const Texture = @import("../ui/texture.zig").Texture;
+const Texture = @import("ui").Texture;
 const Tile = @import("../emu/ppu/tile.zig").Tile;
 
 pub const VramViewer = struct {
@@ -11,7 +10,7 @@ pub const VramViewer = struct {
     pub fn draw(self: *VramViewer, app: *AppState) void {
         if (!self.visible) return;
         defer ig.igEnd();
-        if (!ig.igBegin(LayoutManager.Panels.vram, &self.visible, ig.ImGuiWindowFlags_None)) return;
+        if (!ig.igBegin("Vram viewer", &self.visible, ig.ImGuiWindowFlags_None)) return;
 
         const gb = &app.emu.gb;
 
@@ -36,12 +35,6 @@ pub const VramViewer = struct {
             }
         }
         self.tiles_tex.update(&vram_buffer);
-        ig.igImage(.{
-            ._TexID = self.tiles_tex.imTextureId(),
-            ._TexData = null,
-        }, .{
-            .x = 192,
-            .y = 128,
-        });
+        self.tiles_tex.draw(1);
     }
 };

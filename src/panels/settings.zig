@@ -1,5 +1,8 @@
 const AppState = @import("../app.zig").AppState;
 const ig = @import("cimgui");
+const ui = @import("ui");
+
+const WindowFlag = ui.flags.WindowFlag;
 
 pub const SettingsPanel = struct {
     visible: bool = false,
@@ -7,7 +10,7 @@ pub const SettingsPanel = struct {
     pub fn draw(self: *SettingsPanel, app: *AppState) void {
         if (!self.visible) return;
         ig.igSetNextWindowFocus();
-        if (!ig.igBegin("Settings", &self.visible, ig.ImGuiWindowFlags_None)) return;
+        if (!ig.igBegin("Settings", &self.visible, @intFromEnum(WindowFlag.SettingsPanel))) return;
         defer ig.igEnd();
 
         _ = ig.igSliderFloat("Volume", &app.emu.volume, 0, 1);

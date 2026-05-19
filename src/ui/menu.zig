@@ -1,5 +1,6 @@
 const AppState = @import("../app.zig").AppState;
 const ig = @import("cimgui");
+const ui = @import("ui");
 
 pub fn draw_menu(app: *AppState) void {
     if (!ig.igBeginMainMenuBar()) return;
@@ -45,10 +46,14 @@ fn draw_view_menu(app: *AppState) void {
 
     if (ig.igBeginMenu("Layout")) {
         if (ig.igMenuItem("Default")) {
-            app.layout.set_layout = .Default;
+            ui.setLayout(.Default);
+            app.panels.debug.visible = false;
+            app.panels.vram.visible = false;
         }
         if (ig.igMenuItem("Debug")) {
-            app.layout.set_layout = .Debug;
+            ui.setLayout(.Debug);
+            app.panels.debug.visible = true;
+            app.panels.vram.visible = true;
         }
         ig.igEndMenu();
     }

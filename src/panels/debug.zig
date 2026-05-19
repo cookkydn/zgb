@@ -4,9 +4,11 @@ const ig = @import("cimgui");
 const sokol = @import("sokol");
 const sg = sokol.gfx;
 const std = @import("std");
-const LayoutManager = @import("../ui/layout.zig").LayoutManager;
 const AppState = @import("../app.zig").AppState;
-const NO_FLAG = ig.ImGuiWindowFlags_None;
+
+const ui = @import("ui");
+const WindowFlag = ui.flags.WindowFlag;
+const print = ui.fmt.print;
 
 pub const DebugPanel = struct {
     visible: bool = false,
@@ -38,16 +40,22 @@ pub const DebugPanel = struct {
         if (!self.visible) return;
 
         defer ig.igEnd();
-        if (!ig.igBegin(LayoutManager.Panels.debug, &self.visible, NO_FLAG)) return;
-
-        if (ig.igCollapsingHeader("Informations", ig.ImGuiTreeNodeFlags_DefaultOpen)) {
-            ig.igText("Dear ImGui: %s", ig.IMGUI_VERSION);
-            ig.igText("Sokol Backend: %s", self.backend_name);
-            ig.igText("FPS: %.1f", ig.igGetIO().*.Framerate);
-            ig.igText("GB Model: %s", @tagName(cpu.model).ptr);
+        const flags = [_]WindowFlag{
+            .NoCollapse,
+            .NoTitleBar,
+        };
+        if (!ig.igBegin("Debug", &self.visible, ui.flags.combine(flags))) return;
+        const treeFlags = [_]ui.flags.TreeNodeFlag{
+            .DefaultOpen,
+        };
+        if (ig.igCollapsingHeader("Informations", ui.flags.combine(treeFlags))) {
+            print("Dear ImGui: {s}", .{ig.IMGUI_VERSION});
+            print("Sokol Backend: {s}", .{self.backend_name});
+            print("FPS: {d:.1}", .{ig.igGetIO().*.Framerate});
+            print("GB Model: {s}", .{@tagName(cpu.model).ptr});
         }
 
-        if (ig.igCollapsingHeader("CPU Registers", ig.ImGuiTreeNodeFlags_DefaultOpen)) {
+        if (ig.igCollapsingHeader("CPU Registers", ui.flags.combine(treeFlags))) {
             if (ig.igBeginTable("cpu_regs", 2, ig.ImGuiTableFlags_None)) {
                 defer ig.igEndTable();
 
@@ -90,7 +98,7 @@ pub const DebugPanel = struct {
             }
         }
 
-        if (ig.igCollapsingHeader("Timer", ig.ImGuiTreeNodeFlags_DefaultOpen)) {
+        if (ig.igCollapsingHeader("Timer", ui.flags.combine(treeFlags))) {
             var buf: [32]u8 = undefined;
             if (ig.igBeginTable("timer_regs", 2, ig.ImGuiTableFlags_None)) {
                 defer ig.igEndTable();
@@ -109,15 +117,15 @@ pub const DebugPanel = struct {
             }
         }
 
-        if (ig.igCollapsingHeader("Hardware (PPU & Int)", ig.ImGuiTreeNodeFlags_DefaultOpen)) {
+        if (ig.igCollapsingHeader("Hardware (PPU & Int)", ui.flags.combine(treeFlags))) {
             var buf: [64]u8 = undefined;
 
-            ig.igText("IE:   %s", (std.fmt.bufPrintZ(&buf, "{b:0>8}", .{cpu.int.ie_reg}) catch unreachable).ptr);
-            ig.igText("IF:   %s", (std.fmt.bufPrintZ(&buf, "{b:0>8}", .{cpu.int.if_reg}) catch unreachable).ptr);
+            ui.fmt.kvHex8("IE:", cpu.int.ie_reg);
+            ui.fmt.kvHex8("IF:", cpu.int.if_reg);
             ig.igSeparator();
 
-            ig.igText("LCDC: %s", (std.fmt.bufPrintZ(&buf, "{b:0>8}", .{gb.ppu.mem.lcdc}) catch unreachable).ptr);
-            ig.igText("STAT: %s", (std.fmt.bufPrintZ(&buf, "{b:0>8}", .{gb.ppu.mem.stat}) catch unreachable).ptr);
+            ui.fmt.kvBin8("LCDC:", gb.ppu.mem.lcdc);
+            ui.fmt.kvBin8("STAT:", gb.ppu.mem.stat);
 
             ig.igSeparator();
             ig.igText("LY:   %03d (0x%02X)", gb.ppu.mem.ly, gb.ppu.mem.ly);
@@ -146,7 +154,7 @@ pub const DebugPanel = struct {
             ig.igText("OBP1: %s", (std.fmt.bufPrintZ(&buf, "{b:0>8}", .{gb.ppu.mem.obp1}) catch unreachable).ptr);
         }
 
-        if (ig.igCollapsingHeader("Cartridge", ig.ImGuiTreeNodeFlags_DefaultOpen)) {
+        if (ig.igCollapsingHeader("Cartridge", ui.flags.combine(treeFlags))) {
             if (gb.bus.cartridge) |cart| {
                 ig.igText("Loaded: %s", cart.filename.ptr);
                 ig.igText("ROM Bank: %d", @as(u8, cart.rom_bank));
@@ -156,7 +164,7 @@ pub const DebugPanel = struct {
             }
         }
 
-        if (ig.igCollapsingHeader("Joypad", ig.ImGuiTreeNodeFlags_DefaultOpen)) {
+        if (ig.igCollapsingHeader("Joypad", ui.flags.combine(treeFlags))) {
             var buf: [32]u8 = undefined;
             ig.igText("JOYP: %s", (std.fmt.bufPrintZ(&buf, "{b:0>8}", .{gb.joypad.p1_joyp}) catch unreachable).ptr);
         }
