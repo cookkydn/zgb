@@ -124,12 +124,12 @@ pub const DebugPanel = struct {
             ui.fmt.kvHex8("IF:", cpu.int.if_reg);
             ig.igSeparator();
 
-            ui.fmt.kvBin8("LCDC:", gb.ppu.mem.lcdc);
-            ui.fmt.kvBin8("STAT:", gb.ppu.mem.stat);
+            ui.fmt.kvBin8("LCDC:", gb.ppu.lcdc);
+            ui.fmt.kvBin8("STAT:", gb.ppu.stat);
 
             ig.igSeparator();
-            ig.igText("LY:   %03d (0x%02X)", gb.ppu.mem.ly, gb.ppu.mem.ly);
-            ig.igText("LYC:  %03d (0x%02X)", gb.ppu.mem.lyc, gb.ppu.mem.lyc);
+            ig.igText("LY:   %03d (0x%02X)", gb.ppu.ly, gb.ppu.ly);
+            ig.igText("LYC:  %03d (0x%02X)", gb.ppu.lyc, gb.ppu.lyc);
 
             ig.igSeparator();
             if (ig.igBeginTable("ppu_table", 2, ig.ImGuiTableFlags_None)) {
@@ -137,21 +137,21 @@ pub const DebugPanel = struct {
 
                 ig.igTableNextRow();
                 _ = ig.igTableNextColumn();
-                ig.igText("SCX:  %03d", gb.ppu.mem.scx);
+                ig.igText("SCX:  %03d", gb.ppu.scx);
                 _ = ig.igTableNextColumn();
-                ig.igText("SCY:  %03d", gb.ppu.mem.scy);
+                ig.igText("SCY:  %03d", gb.ppu.scy);
 
                 ig.igTableNextRow();
                 _ = ig.igTableNextColumn();
-                ig.igText("WX:   %03d", gb.ppu.mem.wx);
+                ig.igText("WX:   %03d", gb.ppu.wx);
                 _ = ig.igTableNextColumn();
-                ig.igText("WY:   %03d", gb.ppu.mem.wy);
+                ig.igText("WY:   %03d", gb.ppu.wy);
             }
 
             ig.igSeparator();
-            ig.igText("BGP:  %s", (std.fmt.bufPrintZ(&buf, "{b:0>8}", .{gb.ppu.mem.bgp}) catch unreachable).ptr);
-            ig.igText("OBP0: %s", (std.fmt.bufPrintZ(&buf, "{b:0>8}", .{gb.ppu.mem.obp0}) catch unreachable).ptr);
-            ig.igText("OBP1: %s", (std.fmt.bufPrintZ(&buf, "{b:0>8}", .{gb.ppu.mem.obp1}) catch unreachable).ptr);
+            ig.igText("BGP:  %s", (std.fmt.bufPrintZ(&buf, "{b:0>8}", .{gb.ppu.bgp}) catch unreachable).ptr);
+            ig.igText("OBP0: %s", (std.fmt.bufPrintZ(&buf, "{b:0>8}", .{gb.ppu.obp0}) catch unreachable).ptr);
+            ig.igText("OBP1: %s", (std.fmt.bufPrintZ(&buf, "{b:0>8}", .{gb.ppu.obp1}) catch unreachable).ptr);
         }
 
         if (ig.igCollapsingHeader("Cartridge", ui.flags.combine(treeFlags))) {

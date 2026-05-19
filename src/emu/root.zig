@@ -37,7 +37,7 @@ pub const Gameboy = struct {
         return .{
             .allocator = all,
             .cpu = CPU.init(.dmg_0),
-            .ppu = PPU.init(.dmg_0, all),
+            .ppu = PPU.init(.dmg_0, all) catch @panic("Failed to init PPU"),
             .bus = bus,
             .apu = Apu.init(all),
             .timer = Timer{},
@@ -47,7 +47,7 @@ pub const Gameboy = struct {
 
     pub fn deinit(self: *@This()) void {
         self.apu.deinit();
-        self.ppu.deinit();
+        self.ppu.deinit(self.allocator);
         self.bus.deinit();
     }
 

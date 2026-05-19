@@ -17,8 +17,8 @@ pub fn main(init: std.process.Init) void {
         .cleanup_userdata_cb = appWrapper("deinit", null),
         .event_userdata_cb = appWrapper("event", AppState.Event),
         .window_title = "ZGB",
-        .width = 1440,
-        .height = 900,
+        .width = 930,
+        .height = 860,
         .user_data = &app,
         .icon = .{
             .sokol_default = true,

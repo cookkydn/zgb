@@ -51,7 +51,7 @@ pub const Bus = struct {
             },
             0x4000...0x7FFF => return,
             // -- VRAM --
-            0x8000...0x9FFF => gb.ppu.mem.write_vram(addr, value),
+            0x8000...0x9FFF => gb.ppu.write_vram(addr, value),
             // -- Cartridge RAM --
             0xA000...0xBFFF => {
                 if (self.cartridge.?.ram.len != 0) {
@@ -66,7 +66,7 @@ pub const Bus = struct {
             // -- Echo ram --
             0xE000...0xFDFF => self.wram[addr - 0xE000] = value,
             // -- OAM --
-            0xFE00...0xFE9F => gb.ppu.mem.oam[addr - 0xFE00] = value,
+            0xFE00...0xFE9F => gb.ppu.oam[addr - 0xFE00] = value,
             // -- Not usable --
             0xFEA0...0xFEFF => return,
             // -- Registers --
@@ -126,7 +126,7 @@ pub const Bus = struct {
             },
             0xFF27...0xFF2F => gb.apu.audio_registers[addr - 0xFF10] = value,
             0xFF30...0xFF3F => gb.apu.wave_pattern[addr - 0xFF30] = value,
-            0xFF40...0xFF4B => gb.ppu.mem.write_registers(addr, value),
+            0xFF40...0xFF4B => gb.ppu.write_registers(addr, value),
             0xFF4C => {}, // CGB only
             0xFF4D => {}, // CGB only
             0xFF4E => {}, // unused
@@ -179,7 +179,7 @@ pub const Bus = struct {
                     .other => return 0xFF,
                 }
             },
-            0x8000...0x9FFF => return gb.ppu.mem.read_vram(address),
+            0x8000...0x9FFF => return gb.ppu.read_vram(address),
             0xA000...0xBFFF => {
                 if (self.cartridge.?.ram.len != 0) {
                     return self.cartridge.?.ram[address - 0xA000];
@@ -188,7 +188,7 @@ pub const Bus = struct {
             0xC000...0xCFFF => return self.wram[address - 0xC000],
             0xD000...0xDFFF => return self.wram[address - 0xC000],
             0xE000...0xFDFF => return self.wram[address - 0xE000], // ECHO RAM
-            0xFE00...0xFE9F => return gb.ppu.mem.oam[address - 0xFE00], // OAM
+            0xFE00...0xFE9F => return gb.ppu.oam[address - 0xFE00], // OAM
             0xFEA0...0xFEFF => return 0xFF, // Prohibited
             0xFF00 => return gb.joypad.p1_joyp,
             0xFF01 => 0xFF, //TODO Serial
@@ -202,7 +202,7 @@ pub const Bus = struct {
             0xFF19 => return gb.apu.nr24 | 0xBF,
             0xFF20 => return 0xFF, // Unused
             0xFF26 => return gb.apu.nr52,
-            0xFF40...0xFF4B => return gb.ppu.mem.read_registers(address),
+            0xFF40...0xFF4B => return gb.ppu.read_registers(address),
             0xFF4D => return 0xFF, // CGB only
             0xFF57...0xFF67 => return 0xFF, // Unused
             0xFF68 => return 0xFF, // CGB only

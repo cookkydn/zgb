@@ -1,7 +1,7 @@
 const AppState = @import("../app.zig").AppState;
 const ig = @import("cimgui");
 const Texture = @import("ui").Texture;
-const Tile = @import("../emu/ppu/tile.zig").Tile;
+const tile = @import("../emu/ppu/tile.zig");
 
 pub const VramViewer = struct {
     visible: bool = false,
@@ -19,10 +19,10 @@ pub const VramViewer = struct {
             const t_x: u16 = @truncate(tile_x);
             for (0..16) |tile_y| {
                 const t_y: u16 = @truncate(tile_y);
-                const tile = Tile.fromAddr(0x8000 + t_x * 2 * 8 + 48 * 8 * t_y, &gb.ppu.mem);
+                const tile_addr = 0x8000 + t_x * 2 * 8 + 48 * 8 * t_y;
                 for (0..8) |i| {
                     for (0..8) |j| {
-                        const color = tile.getPixelAt(@truncate(i), @truncate(j));
+                        const color = tile.getPixelAt(&gb.ppu, tile_addr, @truncate(i), @truncate(j));
                         const color_argb: u32 = blk: switch (color) {
                             0 => break :blk 0xFF9CBC0F,
                             1 => break :blk 0xFF8BAC0F,
