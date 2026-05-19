@@ -1,4 +1,3 @@
-const std = @import("std");
 const ig = @import("cimgui");
 
 /// Draws a standard clickable button.

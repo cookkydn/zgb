@@ -3,7 +3,6 @@ const AppState = @import("../app.zig").AppState;
 const AddressList = std.ArrayList(u16);
 const Allocator = std.mem.Allocator;
 
-const WORKING_SIZE = 0xFFFF + 1;
 
 pub const Debugger = struct {
     visible: bool = true,

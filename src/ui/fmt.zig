@@ -1,5 +1,5 @@
-const std = @import("std");
 const ig = @import("cimgui");
+const std = @import("std");
 
 /// Formats and prints text to ImGui without dynamic allocation.
 /// Uses a 64-byte stack buffer, which is extremely fast and safe for UI.

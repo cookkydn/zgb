@@ -2,7 +2,6 @@ const Ppu = @import("./ppu.zig").Ppu;
 const PpuMem = @import("./ppu_mem.zig").PpuMem;
 const Tile = @import("./tile.zig").Tile;
 
-const std = @import("std");
 
 pub const Window = struct {
     y_cond: bool = false,

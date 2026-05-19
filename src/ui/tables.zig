@@ -1,7 +1,7 @@
-const std = @import("std");
-const ig = @import("cimgui");
-const fmt = @import("fmt.zig");
 const flag_mod = @import("flags.zig");
+const fmt = @import("fmt.zig");
+const ig = @import("cimgui");
+const std = @import("std");
 const TableFlag = flag_mod.TableFlag;
 const combine = flag_mod.combine;
 

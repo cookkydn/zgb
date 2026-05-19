@@ -1,10 +1,9 @@
-const ig = @import("cimgui");
-const std = @import("std");
 const dock_builder = @import("dock-builder.zig");
+const ig = @import("cimgui");
 
 pub const LayoutPreset = enum {
-    Default,
     Debug,
+    Default,
 };
 
 pub fn applyLayout(dockspace_id: *ig.ImGuiID, layout: LayoutPreset) void {

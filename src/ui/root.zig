@@ -1,13 +1,12 @@
 pub const flags = @import("flags.zig");
 pub const fmt = @import("fmt.zig");
-pub const tables = @import("tables.zig");
 pub const inputs = @import("inputs.zig");
 pub const layout = @import("layout.zig");
+pub const tables = @import("tables.zig");
 
 pub const Texture = @import("texture.zig");
 
 const ig = @import("cimgui");
-const dock_builder = @import("dock-builder.zig");
 
 var current_layout: layout.LayoutPreset = .Default;
 var next_layout: ?layout.LayoutPreset = .Default;
