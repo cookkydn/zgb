@@ -1,4 +1,5 @@
 const ig = @import("cimgui");
+const emu = @import("../emu/root.zig");
 const std = @import("std");
 const AppState = @import("../app.zig").AppState;
 const Cartridge = @import("../emu/memory/cartridge.zig").Cartridge;
@@ -131,6 +132,10 @@ pub const RomBrowser = struct {
         const full_path = std.fmt.allocPrintSentinel(self.allocator, "{s}/{s}", .{ self.current_path, filename }, 0) catch return;
         defer self.allocator.free(full_path);
         const cart = Cartridge.fromFile(full_path, self.allocator, self.io) catch @panic("Failed to open rom");
+        app.emu.gb.cpu.reg = emu.Registers.init();
+        if (app.emu.gb.bus.cartridge) |cartridge| {
+            cartridge.deinit();
+        }
         app.emu.gb.bus.cartridge = cart;
         app.emu.pause = false;
         self.visible = false;
