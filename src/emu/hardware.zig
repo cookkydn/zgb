@@ -17,9 +17,10 @@ pub const GbModel = enum {
 };
 
 pub const MBCType = enum {
+    no_mbc,
     mbc_1,
     mbc_1_with_ram,
-    no_mbc,
+    mbc_1_with_ram_and_battery,
     other,
 
     pub fn fromByte(byte: u8) MBCType {
@@ -27,8 +28,9 @@ pub const MBCType = enum {
             0x00 => .no_mbc,
             0x01 => .mbc_1,
             0x02 => .mbc_1_with_ram,
+            0x03 => .mbc_1_with_ram_and_battery,
             else => {
-                std.debug.print("Warning: Unsuported cartridge type: 0x{x}\n", .{byte});
+                std.log.warn("Warning: Unsuported cartridge type: 0x{x}\n", .{byte});
                 return .other;
             },
         };

@@ -1,16 +1,18 @@
 const Ppu = @import("./ppu.zig").Ppu;
 const tile = @import("./tile.zig");
+const std = @import("std");
 
 pub const Window = @This();
 
 y_cond: bool = false,
 counter: u8 = 7,
+debug_was_window_enabled: bool = false,
 
 fn getPpu(self: *Window) *Ppu {
     return @alignCast(@fieldParentPtr("window", self));
 }
 
-fn isWindowEnabled(self: *Window) bool {
+pub fn isWindowEnabled(self: *Window) bool {
     return self.getPpu().lcdc & 0x10 > 0;
 }
 
@@ -19,10 +21,17 @@ fn getWindowTileMapArea(self: *Window) u16 {
 }
 
 pub fn newLine(self: *Window) void {
+    if (self.isWindowEnabled() and !self.debug_was_window_enabled) {
+        std.log.debug("Window: enabled", .{});
+        self.debug_was_window_enabled = true;
+    } else if (!self.isWindowEnabled() and self.debug_was_window_enabled) {
+        std.log.debug("Window: disabled", .{});
+        self.debug_was_window_enabled = false;
+    }
     if (!self.isWindowEnabled()) return;
     const mem = self.getPpu();
     if (mem.wy == mem.ly) {
-        self.y_cond = false;
+        self.y_cond = true;
     }
     self.counter = 7;
 }
@@ -30,9 +39,9 @@ pub fn newLine(self: *Window) void {
 pub fn getPixelColorAt(self: *Window, screen_x: u16, screen_y: u16) ?u2 {
     if (!self.isWindowEnabled()) return null;
     defer self.counter += 1;
-    if (screen_x > self.counter) {
-        self.y_cond = true;
-    }
+    // if (wx == self.counter and self.y_cond) {
+    //     todo reset background rendering ??
+    // }
 
     if (self.y_cond) {
         const tile_y: u16 = screen_y / 8;

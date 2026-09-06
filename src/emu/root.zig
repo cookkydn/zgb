@@ -19,6 +19,7 @@ pub const R16Stk = instr_mod.R16Stk;
 pub const Cond = instr_mod.Cond;
 const std = @import("std");
 const Allocator = std.mem.Allocator;
+const GbModel = @import("./hardware.zig").GbModel;
 
 pub const Gameboy = struct {
     allocator: Allocator,
@@ -30,14 +31,16 @@ pub const Gameboy = struct {
     joypad: Joypad,
 
     pub fn init(all: Allocator, io: std.Io) Gameboy {
-        var bus = Bus.init();
-        bus.loadBios(io) catch |err| {
+        const model: GbModel = .dmg_0;
+        std.log.info("Initializing ZGB emu\n\tmodel: {s}", .{@tagName(model)});
+        var bus = Bus.init(all);
+        bus.loadBios(io, model) catch |err| {
             std.debug.panic("Failed to load bios: {s}\n", .{@errorName(err)});
         };
         return .{
             .allocator = all,
-            .cpu = CPU.init(.dmg_0),
-            .ppu = PPU.init(.dmg_0, all) catch @panic("Failed to init PPU"),
+            .cpu = CPU.init(model),
+            .ppu = PPU.init(model, all) catch @panic("Failed to init PPU"),
             .bus = bus,
             .apu = Apu.init(all),
             .timer = Timer{},
@@ -46,6 +49,7 @@ pub const Gameboy = struct {
     }
 
     pub fn deinit(self: *@This()) void {
+        std.log.info("Emulator deinit", .{});
         self.apu.deinit();
         self.ppu.deinit(self.allocator);
         self.bus.deinit();

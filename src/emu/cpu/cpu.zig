@@ -1,7 +1,7 @@
 const alu = @import("./arithmetics.zig");
 const hardware = @import("../hardware.zig");
 
-const Bus = @import("../memory/bus.zig").Bus;
+const Bus = @import("../memory/bus.zig");
 const Registers = @import("registers.zig").Registers;
 const Instruction = @import("./instructions.zig").Instruction;
 const CpuState = @import("state.zig").CpuState;
@@ -20,10 +20,8 @@ pub const Cpu = struct {
         };
     }
 
-    pub fn execute_instruction(self: *Cpu, instruction: Instruction) u16 {
+    pub fn execute_instruction(self: *Cpu, instruction: Instruction, mem: *Bus) u16 {
         var reg = &self.reg;
-        var mem = &Gameboy.getGB("cpu", self).bus;
-
         var cycles: u16 = 4;
         switch (instruction) {
             .nop, .breakpoint => return cycles,
@@ -613,7 +611,7 @@ pub const Cpu = struct {
         return cycles;
     }
 
-    pub fn handleInterrupts(self: *Cpu) u16 {
+    pub fn handleInterrupts(self: *Cpu, mem: *Bus) u16 {
         if (self.int.hasPending()) {
             self.state.halted = false;
         }
@@ -626,7 +624,7 @@ pub const Cpu = struct {
 
         if (self.int.acknowledge()) |src| {
             self.state.ime = .DISABLED;
-            _ = self.execute_instruction(.{ .call_imm16 = .{ .imm16 = src } });
+            _ = self.execute_instruction(.{ .call_imm16 = .{ .imm16 = src } }, mem);
 
             return 20;
         }

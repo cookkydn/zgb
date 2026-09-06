@@ -51,6 +51,7 @@ pub const AppState = struct {
     }
 
     pub fn initSokol(self: *AppState) void {
+        std.log.info("Loading Sokol backend", .{});
         sg.setup(.{
             .environment = sglue.environment(),
             .logger = .{ .func = slog.func },
@@ -87,6 +88,7 @@ pub const AppState = struct {
     }
 
     pub fn deinit(self: *AppState) void {
+        std.log.info("Sokol deinit", .{});
         // -- App deinit --
         self.emu.deinit();
         self.gfx.deinit();
@@ -213,13 +215,13 @@ pub const Emulator = struct {
 
     pub fn frameEmu(self: *Emulator) void {
         if (!self.pause) {
-            while (self.skip_boot and self.gb.bus.is_bios) {
+            while (self.skip_boot and self.gb.bus.is_bios_loaded) {
                 var cycles_taken: u16 = 4;
                 if (!self.gb.cpu.state.halted) {
                     const instr = emu.Instruction.fromBus(&self.gb.bus);
-                    cycles_taken = self.gb.cpu.execute_instruction(instr);
+                    cycles_taken = self.gb.cpu.execute_instruction(instr, &self.gb.bus);
                 }
-                cycles_taken += self.gb.cpu.handleInterrupts();
+                cycles_taken += self.gb.cpu.handleInterrupts(&self.gb.bus);
                 self.gb.ppu.tick(cycles_taken);
                 self.gb.timer.tick(cycles_taken);
                 self.gb.apu.tick(cycles_taken);
@@ -240,9 +242,9 @@ pub const Emulator = struct {
                 var cycles_taken: u16 = 4;
                 if (!self.gb.cpu.state.halted) {
                     const instr = emu.Instruction.fromBus(&self.gb.bus);
-                    cycles_taken = self.gb.cpu.execute_instruction(instr);
+                    cycles_taken = self.gb.cpu.execute_instruction(instr, &self.gb.bus);
                 }
-                cycles_taken += self.gb.cpu.handleInterrupts();
+                cycles_taken += self.gb.cpu.handleInterrupts(&self.gb.bus);
                 self.gb.ppu.tick(cycles_taken);
                 self.gb.timer.tick(cycles_taken);
                 self.gb.apu.tick(cycles_taken);

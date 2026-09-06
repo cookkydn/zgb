@@ -7,6 +7,7 @@ const sapp = sokol.app;
 var app_ref: *AppState = undefined;
 
 pub fn main(init: std.process.Init) void {
+    std.log.info("Loading ZGB", .{});
     const allocator = AppState.alloc_impl.allocator();
     const io = init.io;
     var app = AppState.init(allocator, io);

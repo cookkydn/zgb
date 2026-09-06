@@ -15,6 +15,7 @@ ram_bank: u5 = 1,
 mode: u1 = 0,
 
 pub fn fromFile(filename: []const u8, allocator: Allocator, io: std.Io) error{ CartridgeNotFound, CartridgeTooBig }!Cartridge {
+    std.log.info("Opening \"{s}\"", .{filename});
     const file = std.Io.Dir.cwd().openFile(io, filename, .{
         .mode = .read_only,
     }) catch return error.CartridgeNotFound;
@@ -27,9 +28,10 @@ pub fn fromFile(filename: []const u8, allocator: Allocator, io: std.Io) error{ C
     std.debug.assert(content.len >= 0x8000);
 
     const title = content[0x0134..0x0143];
+    const CGB_flag = content[0x0143];
     const mbc_type = MBCType.fromByte(content[0x147]);
     // unused
-    // const rom_size: usize = 32768 * (1 << content[0x148]);
+    const rom_size: usize = 32768 * ((@as(usize, 1)) << @as(u6, @truncate(content[0x148])));
     const ram_size: usize = switch (content[0x149]) {
         0x00 => 0,
         0x02 => 0x2000,
@@ -37,7 +39,7 @@ pub fn fromFile(filename: []const u8, allocator: Allocator, io: std.Io) error{ C
         0x04 => 0x20000,
         0x05 => 0x10000,
         else => blk: {
-            std.debug.print("Warning: unknown ram size header {}", .{content[0x149]});
+            std.log.warn("Warning: unknown ram size header {}", .{content[0x149]});
             break :blk 0;
         },
     };
@@ -45,7 +47,14 @@ pub fn fromFile(filename: []const u8, allocator: Allocator, io: std.Io) error{ C
     const ram: []u8 = allocator.alloc(u8, ram_size) catch @panic("Out of memory");
     const filename_copy = allocator.dupeZ(u8, filename) catch unreachable;
     @memset(ram, 0);
-
+    std.log.info("Cartridge info\n\ttitle: {s}\n\tmbc_type: {s}\n\tCGB_flag 0x{x}\n\trom_size: {d} ({d} banks)\n\tram_size: {d}", .{
+        title,
+        @tagName(mbc_type),
+        CGB_flag,
+        rom_size,
+        rom_size / 32768,
+        ram_size,
+    });
     return Cartridge{
         .title = title,
         .mbc_type = mbc_type,

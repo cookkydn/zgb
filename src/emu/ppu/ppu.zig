@@ -69,6 +69,8 @@ wy: u8 = 0,
 wx: u8 = 0,
 window: Window = .{},
 
+debug_was_bg_and_window_display_set: bool = false,
+
 frame_buffer: [SCREEN_HEIGHT * SCREEN_WIDTH]u32 = .{0} ** (SCREEN_HEIGHT * SCREEN_WIDTH),
 dots: u16 = 0,
 
@@ -136,13 +138,21 @@ pub fn tick(self: *Ppu, cycles: u16) void {
 }
 
 fn renderScanLine(self: *Ppu) void {
+    if (self.isBgAndWindowEnabled() and !self.debug_was_bg_and_window_display_set) {
+        std.log.debug("BG & Window: enabled", .{});
+        self.debug_was_bg_and_window_display_set = true;
+    } else if (!self.isBgAndWindowEnabled() and self.debug_was_bg_and_window_display_set) {
+        std.log.debug("BG & Window: disabled", .{});
+        self.debug_was_bg_and_window_display_set = false;
+    }
     const ly = @as(u16, self.ly);
     const absolute_y: u16 = (ly + @as(u16, self.scy)) % 256;
     const tile_y: u16 = absolute_y / 8;
     const offset_y: u16 = absolute_y % 8;
+    const obj_size_flag: bool = self.lcdc & 0x4 == 0x4;
     self.window.newLine();
     for (0..SCREEN_WIDTH) |x| {
-        if (!self.bgAndWindowEnable()) {
+        if (!self.isBgAndWindowEnabled()) {
             self.putPixel(x, self.ly, 0);
         } else {
             const absolute_x: u16 = (@as(u16, @truncate(x)) + @as(u16, self.scx)) % 256;
@@ -158,19 +168,39 @@ fn renderScanLine(self: *Ppu) void {
         }
     }
     if (self.lcdc & 0x02 > 0) {
-        for (0..40) |i| {
-            const sprite = Sprite.fromOam(self.oam[i * 4 .. (i * 4) + 4][0..4]);
-            if (sprite.y_pos > self.ly + 8 and sprite.y_pos <= self.ly + 16) {
-                const lsb = self.vram[@as(u16, sprite.tile_index) * 16 + (if (sprite.flags.y_flip) 8 - (self.ly - (sprite.y_pos - 16)) else self.ly - (sprite.y_pos - 16)) * 2];
-                const msb = self.vram[@as(u16, sprite.tile_index) * 16 + (if (sprite.flags.y_flip) 8 - (self.ly - (sprite.y_pos - 16)) else self.ly - (sprite.y_pos - 16)) * 2 + 1];
-                for (0..8) |j| {
-                    const bit_index: u3 = if (sprite.flags.x_flip) @truncate(j) else @truncate(7 - j);
-                    const lsb_bit = (lsb >> bit_index) & 1;
-                    const msb_bit = (msb >> bit_index) & 1;
-                    const color_index = @as(u2, @truncate((msb_bit << 1) | lsb_bit));
-                    const color = self.getColorByObjPalette(color_index, sprite.flags.dmg_palette);
-                    if (color_index != 0) {
-                        self.putPixel(sprite.x_pos -| 8 + j, self.ly, color);
+        if (obj_size_flag) {
+            for (0..20) |i| {
+                const sprite = Sprite.fromOam(self.oam[i * 4 .. (i * 4) + 4][0..4]);
+                if (sprite.y_pos > self.ly and sprite.y_pos <= self.ly + 16) {
+                    const lsb = self.vram[@as(u16, sprite.tile_index) *% 16 +% (if (sprite.flags.y_flip) 8 -% (self.ly -% (sprite.y_pos -% 16)) else self.ly -% (sprite.y_pos -% 16)) *% 2];
+                    const msb = self.vram[@as(u16, sprite.tile_index) *% 16 +% (if (sprite.flags.y_flip) 8 -% (self.ly -% (sprite.y_pos -% 16)) else self.ly -% (sprite.y_pos -% 16)) *% 2 +% 1];
+                    for (0..8) |j| {
+                        const bit_index: u3 = if (sprite.flags.x_flip) @truncate(j) else @truncate(7 - j);
+                        const lsb_bit = (lsb >> bit_index) & 1;
+                        const msb_bit = (msb >> bit_index) & 1;
+                        const color_index = @as(u2, @truncate((msb_bit << 1) | lsb_bit));
+                        const color = self.getColorByObjPalette(color_index, sprite.flags.dmg_palette);
+                        if (color_index != 0) {
+                            self.putPixel(sprite.x_pos -| 8 + j, self.ly, color);
+                        }
+                    }
+                }
+            }
+        } else {
+            for (0..40) |i| {
+                const sprite = Sprite.fromOam(self.oam[i * 4 .. (i * 4) + 4][0..4]);
+                if (sprite.y_pos > self.ly + 8 and sprite.y_pos <= self.ly + 16) {
+                    const lsb = self.vram[@as(u16, sprite.tile_index) * 16 +% (if (sprite.flags.y_flip) 8 -% (self.ly -% (sprite.y_pos -% 16)) else self.ly -% (sprite.y_pos -% 16)) * 2];
+                    const msb = self.vram[@as(u16, sprite.tile_index) * 16 +% (if (sprite.flags.y_flip) 8 -% (self.ly -% (sprite.y_pos - 16)) else self.ly -% (sprite.y_pos -% 16)) * 2 + 1];
+                    for (0..8) |j| {
+                        const bit_index: u3 = if (sprite.flags.x_flip) @truncate(j) else @truncate(7 - j);
+                        const lsb_bit = (lsb >> bit_index) & 1;
+                        const msb_bit = (msb >> bit_index) & 1;
+                        const color_index = @as(u2, @truncate((msb_bit << 1) | lsb_bit));
+                        const color = self.getColorByObjPalette(color_index, sprite.flags.dmg_palette);
+                        if (color_index != 0) {
+                            self.putPixel(sprite.x_pos -| 8 + j, self.ly, color);
+                        }
                     }
                 }
             }
@@ -229,7 +259,7 @@ pub fn turn_off(self: *Ppu) void {
     }
 }
 
-pub fn bgAndWindowEnable(self: *Ppu) bool {
+pub fn isBgAndWindowEnabled(self: *Ppu) bool {
     return self.lcdc & 1 == 1;
 }
 
