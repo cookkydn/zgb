@@ -213,6 +213,13 @@ const Flags = struct {
         return @as(u16, z | n | h | c);
     }
 
+    pub fn setF(self: *Flags, f: u8) void {
+        self.z = (f & 0x80) != 0;
+        self.n = (f & 0x40) != 0;
+        self.h = (f & 0x20) != 0;
+        self.c = (f & 0x10) != 0;
+    }
+
     pub fn checkCond(self: Flags, cc: instr.Cond) bool {
         switch (cc) {
             .nz => return !self.z,

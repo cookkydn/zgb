@@ -85,4 +85,19 @@ pub fn build(b: *std.Build) void {
     const run_step = b.step("run", "Run the application");
 
     run_step.dependOn(&run_exe.step);
+
+    const cpu_test_mod = b.addModule("cpu_test", .{
+        .root_source_file = b.path("src/test_cpu.zig"),
+        .optimize = optimize,
+        .target = target,
+    });
+    const cpu_test_mod_options = b.addOptions();
+    cpu_test_mod.addOptions("build_options", cpu_test_mod_options);
+    const cpu_test_exe = b.addExecutable(.{
+        .name = "ZGB-cpu-test",
+        .root_module = cpu_test_mod,
+    });
+    const test_cpu_cmd = b.step("test_cpu", "Run the CPU test");
+    const run_cpu_tests = b.addRunArtifact(cpu_test_exe);
+    test_cpu_cmd.dependOn(&run_cpu_tests.step);
 }

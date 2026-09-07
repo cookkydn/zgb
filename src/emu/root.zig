@@ -32,7 +32,7 @@ pub const Gameboy = struct {
 
     pub fn init(all: Allocator, io: std.Io) Gameboy {
         const model: GbModel = .dmg_0;
-        std.log.info("Initializing ZGB emu\n\tmodel: {s}", .{@tagName(model)});
+        // std.log.info("Initializing ZGB emu\n\tmodel: {s}", .{@tagName(model)});
         var bus = Bus.init(all);
         bus.loadBios(io, model) catch |err| {
             std.debug.panic("Failed to load bios: {s}\n", .{@errorName(err)});
@@ -49,7 +49,7 @@ pub const Gameboy = struct {
     }
 
     pub fn deinit(self: *@This()) void {
-        std.log.info("Emulator deinit", .{});
+        // std.log.info("Emulator deinit", .{});
         self.apu.deinit();
         self.ppu.deinit(self.allocator);
         self.bus.deinit();

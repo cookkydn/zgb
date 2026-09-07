@@ -21,13 +21,24 @@ invalidate_cache: bool = false,
 
 is_bios_loaded: bool = true,
 
+test_is_flat_mem_enabled: bool = false,
+flat_mem: ?[]u8 = null,
+
 pub fn init(all: std.mem.Allocator) Bus {
-    std.log.info("Loading bus", .{});
+    // std.log.info("Loading bus", .{});
     return .{
         .cartridge = null,
         .bios = null,
         .allocator = all,
     };
+}
+
+pub fn init_flat_mem(self: *Bus, all: std.mem.Allocator) !void {
+    const mem = try all.alloc(u8, 0x10000);
+    self.flat_mem = mem;
+    @memset(mem, 0);
+    self.test_is_flat_mem_enabled = true;
+    // std.log.warn("Bus: Flat memory enabled, others components will not work", .{});
 }
 
 pub fn deinit(self: *Bus) void {
@@ -40,15 +51,25 @@ pub fn deinit(self: *Bus) void {
 }
 
 pub fn write_at(self: *Bus, addr: u16, value: u8) void {
+    if (self.test_is_flat_mem_enabled) {
+        if (self.flat_mem) |mem| {
+            mem[addr] = value;
+        } else {
+            std.log.err("Bus: attempted to write to flat mem without allocating it first", .{});
+        }
+        return;
+    }
     const gb = Gameboy.getGB("bus", self);
     switch (addr) {
         // -- ROM --
         0x0000...0x1FFF => return,
         0x2000...0x3FFF => {
-            switch (self.cartridge.?.mbc_type) {
-                .no_mbc => return,
-                .mbc_1, .mbc_1_with_ram, .mbc_1_with_ram_and_battery => self.cartridge.?.rom_bank = @truncate((value & 0x1F)),
-                .other => return,
+            if (self.cartridge) |cartridge| {
+                switch (cartridge.mbc_type) {
+                    .no_mbc => return,
+                    .mbc_1, .mbc_1_with_ram, .mbc_1_with_ram_and_battery => self.cartridge.?.rom_bank = @truncate((value & 0x1F)),
+                    .other => return,
+                }
             }
         },
         0x4000...0x7FFF => return,
@@ -154,6 +175,13 @@ pub fn write_at(self: *Bus, addr: u16, value: u8) void {
 }
 
 pub fn read_at(self: *Bus, address: u16) u8 {
+    if (self.test_is_flat_mem_enabled) {
+        if (self.flat_mem) |mem| {
+            return mem[address];
+        } else {
+            std.debug.panic("Attempted to read to flat mem without allocating it first", .{});
+        }
+    }
     const gb = Gameboy.getGB("bus", self);
     return switch (address) {
         0x0000...0x00FF => {
@@ -162,7 +190,11 @@ pub fn read_at(self: *Bus, address: u16) u8 {
             }
             return self.cartridge.?.rom[address];
         },
-        0x0100...0x3FFF => return self.cartridge.?.rom[address],
+        0x0100...0x3FFF => {
+            if (self.cartridge) |cartridge| {
+                return cartridge.rom[address];
+            } else return 0xFF;
+        },
         0x4000...0x7FFF => {
             switch (self.cartridge.?.mbc_type) {
                 .no_mbc => return self.cartridge.?.rom[address],
@@ -233,8 +265,8 @@ pub fn read_at(self: *Bus, address: u16) u8 {
 
 pub fn read_u8(self: *Bus) u8 {
     const gb = Gameboy.getGB("bus", self);
-    gb.cpu.reg.pc += 1;
-    return self.read_at(gb.cpu.reg.pc - 1);
+    gb.cpu.reg.pc +%= 1;
+    return self.read_at(gb.cpu.reg.pc -% 1);
 }
 
 pub fn read_i8(self: *Bus) i8 {
