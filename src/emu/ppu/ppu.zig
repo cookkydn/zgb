@@ -76,7 +76,9 @@ dots: u16 = 0,
 
 pub fn init(model: GbModel, allocator: Allocator) !Ppu {
     const vram = try allocator.alloc(u8, model.vramSize());
+    @memset(vram, 0);
     const oam = try allocator.alloc(u8, 0xA0);
+    @memset(oam, 0);
     return .{
         .vram = vram,
         .oam = oam,
@@ -132,6 +134,7 @@ pub fn tick(self: *Ppu, cycles: u16) void {
 
             if (self.ly <= 153) return;
             self.ly = 0;
+            self.window.y_cond = false;
             self.setMode(.oam_scan);
         },
     }
@@ -161,7 +164,7 @@ fn renderScanLine(self: *Ppu) void {
             const tile_addr = background.getTileAddrAt(self, tile_x, tile_y);
             const pixel_data = tile.getPixelAt(self, tile_addr, offset_x, offset_y);
             var pixel_color = self.getColorByBgPalette(pixel_data);
-            if (self.window.getPixelColorAt(absolute_x, absolute_y)) |pixel| {
+            if (self.window.getPixelColorAt(x, ly, self.wx, self.wy)) |pixel| {
                 pixel_color = self.getColorByBgPalette(pixel);
             }
             self.putPixel(x, self.ly, pixel_color);

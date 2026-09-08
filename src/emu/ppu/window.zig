@@ -13,7 +13,7 @@ fn getPpu(self: *Window) *Ppu {
 }
 
 pub fn isWindowEnabled(self: *Window) bool {
-    return self.getPpu().lcdc & 0x10 > 0;
+    return self.getPpu().lcdc & 0x20 > 0;
 }
 
 fn getWindowTileMapArea(self: *Window) u16 {
@@ -36,7 +36,7 @@ pub fn newLine(self: *Window) void {
     self.counter = 7;
 }
 
-pub fn getPixelColorAt(self: *Window, screen_x: u16, screen_y: u16) ?u2 {
+pub fn getPixelColorAt(self: *Window, screen_x: u16, screen_y: u16, wx: u8, wy: u8) ?u2 {
     if (!self.isWindowEnabled()) return null;
     defer self.counter += 1;
     // if (wx == self.counter and self.y_cond) {
@@ -44,15 +44,15 @@ pub fn getPixelColorAt(self: *Window, screen_x: u16, screen_y: u16) ?u2 {
     // }
 
     if (self.y_cond) {
-        const tile_y: u16 = screen_y / 8;
-        const offset_y: u16 = screen_y % 8;
+        const tile_y: u16 = (screen_y -% wy) / 8;
+        const offset_y: u16 = (screen_y -% wy) % 8;
 
-        const tile_x: u16 = screen_x / 8;
-        const offset_x: u16 = screen_x % 8;
+        const tile_x: u16 = (screen_x + 7 -% wx) / 8;
+        const offset_x: u16 = (screen_x + 7 -% wx) % 8;
 
         // TILE
 
-        const tile_index_addr = self.getWindowTileMapArea() + (tile_y * 32) + tile_x;
+        const tile_index_addr = self.getWindowTileMapArea() +% (tile_y *% 32) +% tile_x;
         const tile_index = self.getPpu().read_vram(tile_index_addr);
         const addressing = Ppu.AddressingMode.getAddressingMode(self.getPpu().lcdc);
 
