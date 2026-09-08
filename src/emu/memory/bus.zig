@@ -238,8 +238,10 @@ pub fn read_at(self: *Bus, address: u16) u8 {
         0xFF17 => return gb.apu.nr22,
         0xFF18 => return 0xFF,
         0xFF19 => return gb.apu.nr24 | 0xBF,
+        0xFF1A => return gb.apu.nr30,
         0xFF20 => return 0xFF, // Unused
         0xFF24 => return gb.apu.nr50,
+        0xFF25 => return gb.apu.nr51,
         0xFF26 => return gb.apu.nr52,
         0xFF40...0xFF4B => return gb.ppu.read_registers(address),
         0xFF4D => return 0xFF, // CGB only

@@ -52,7 +52,7 @@ pub fn getPixelColorAt(self: *Window, screen_x: u16, screen_y: u16, wx: u8, wy: 
 
         // TILE
 
-        const tile_index_addr = self.getWindowTileMapArea() +% (tile_y *% 32) +% tile_x;
+        const tile_index_addr = self.getWindowTileMapArea() +| (tile_y *| 32) +| tile_x;
         const tile_index = self.getPpu().read_vram(tile_index_addr);
         const addressing = Ppu.AddressingMode.getAddressingMode(self.getPpu().lcdc);
 

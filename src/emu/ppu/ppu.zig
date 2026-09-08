@@ -73,6 +73,7 @@ debug_was_bg_and_window_display_set: bool = false,
 
 frame_buffer: [SCREEN_HEIGHT * SCREEN_WIDTH]u32 = .{0} ** (SCREEN_HEIGHT * SCREEN_WIDTH),
 dots: u16 = 0,
+raised_int_last_mode_switch: bool = false,
 
 pub fn init(model: GbModel, allocator: Allocator) !Ppu {
     const vram = try allocator.alloc(u8, model.vramSize());
@@ -87,6 +88,30 @@ pub fn init(model: GbModel, allocator: Allocator) !Ppu {
 
 fn setMode(self: *@This(), mode: Mode) void {
     self.stat = (self.stat & 0xFC) | @intFromEnum(mode);
+    var int = Gameboy.getGB("ppu", self).cpu.int;
+    if (self.raised_int_last_mode_switch) {
+        self.raised_int_last_mode_switch = false;
+        return;
+    }
+    switch (mode) {
+        .oam_scan => if (self.stat & 0x20 > 0) {
+            int.requestStat();
+            self.raised_int_last_mode_switch = true;
+            return;
+        },
+        .h_blank => if (self.stat & 0x08 > 0) {
+            int.requestStat();
+            self.raised_int_last_mode_switch = true;
+            return;
+        },
+        .v_blank => if (self.stat & 0x10 > 0) {
+            int.requestStat();
+            self.raised_int_last_mode_switch = true;
+            return;
+        },
+        else => {},
+    }
+    self.raised_int_last_mode_switch = false;
 }
 
 pub fn getMode(self: *Ppu) Mode {
@@ -106,20 +131,26 @@ pub fn tick(self: *Ppu, cycles: u16) void {
 
     switch (self.getMode()) {
         .oam_scan => {
+            // Mode 2
             if (self.dots < 80) return;
             self.dots -= 80;
             self.setMode(.drawing);
         },
         .drawing => {
+            // mode 3
             if (self.dots < 172) return;
             self.dots -= 172;
             self.setMode(.h_blank);
             self.renderScanLine();
         },
         .h_blank => {
+            // Mode 0
             if (self.dots < 204) return;
             self.dots -= 204;
             self.ly += 1;
+            if (self.ly == self.lyc and self.stat & 0x40 != 0) {
+                Gameboy.getGB("ppu", self).cpu.int.requestStat();
+            }
             if (self.ly == 144) {
                 self.setMode(.v_blank);
                 gb.cpu.int.requestVblank();
@@ -128,6 +159,7 @@ pub fn tick(self: *Ppu, cycles: u16) void {
             }
         },
         .v_blank => {
+            //  Mode 1
             if (self.dots < 456) return;
             self.dots -= 456;
             self.ly += 1;
@@ -164,7 +196,7 @@ fn renderScanLine(self: *Ppu) void {
             const tile_addr = background.getTileAddrAt(self, tile_x, tile_y);
             const pixel_data = tile.getPixelAt(self, tile_addr, offset_x, offset_y);
             var pixel_color = self.getColorByBgPalette(pixel_data);
-            if (self.window.getPixelColorAt(x, ly, self.wx, self.wy)) |pixel| {
+            if (self.window.getPixelColorAt(@truncate(x), ly, self.wx, self.wy)) |pixel| {
                 pixel_color = self.getColorByBgPalette(pixel);
             }
             self.putPixel(x, self.ly, pixel_color);
