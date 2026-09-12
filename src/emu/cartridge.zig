@@ -1,6 +1,6 @@
 pub const Cartridge = @This();
 
-const MBCType = @import("../hardware.zig").MBCType;
+const MBCType = @import("hardware.zig").MBCType;
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 

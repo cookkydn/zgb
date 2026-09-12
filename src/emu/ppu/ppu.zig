@@ -3,15 +3,15 @@ pub const Ppu = @This();
 
 const std = @import("std");
 const GbModel = @import("../hardware.zig").GbModel;
-const Cpu = @import("../cpu/cpu.zig").Cpu;
-const Bus = @import("../memory/bus.zig").Bus;
+const Cpu = @import("../alu/cpu.zig").Cpu;
+const Bus = @import("../bus.zig").Bus;
 const Sprite = @import("sprite.zig").Sprite;
-const Gameboy = @import("../root.zig").Gameboy;
+const Gameboy = @import("../root.zig").Emulator;
 const background = @import("background.zig");
 const tile = @import("tile.zig");
 const Window = @import("./window.zig").Window;
 const Allocator = std.mem.Allocator;
-const alu = @import("../cpu/arithmetics.zig");
+const alu = @import("../alu/arithmetics.zig");
 
 const SCREEN_HEIGHT = 144;
 const SCREEN_WIDTH = 160;

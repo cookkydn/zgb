@@ -4,17 +4,13 @@
     .fingerprint = 0x2f27c98082d44820, // Do not change.
     .minimum_zig_version = "0.16.0",
     .dependencies = .{
-        .sokol = .{
-            .url = "git+https://github.com/floooh/sokol-zig.git#8b1a651e6b8e76af3063a4094a5935432eb8afe2",
-            .hash = "sokol-0.1.0-pb1HK1lhNwCdIF2-WujvJqi1YoK7Qvgm14Ywmup5C6_q",
-        },
-        .cimgui = .{
-            .url = "git+https://github.com/floooh/dcimgui.git#e2f0e0d93adec02743c55940be23ffe286e857f7",
-            .hash = "cimgui-0.1.0-44ClkR8dmgDqqnfloyLE1bUAtl4zSKTT1wxaHSEC0ikV",
-        },
         .zlinter = .{
             .url = "git+https://github.com/kurtwagner/zlinter?ref=0.16.x#9b4d67b9725e7137ac876cc628fe5dd2ca5a2681",
             .hash = "zlinter-0.0.1-OjQ08c7oCwDIwhlde7eDKMACNTsqAhGXy5vB7GdfGobG",
+        },
+        .dvui = .{
+            .url = "git+https://github.com/david-vanderson/dvui?ref=main#fd6f1697c65b8f146de7c811e15c9d56b6eb990e",
+            .hash = "dvui-0.5.0-dev-AQFJmZZyAwEkR_gCdvQuRximklpTrbREI25evlYk6Pz-",
         },
     },
     .paths = .{

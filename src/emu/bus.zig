@@ -1,12 +1,11 @@
-const alu = @import("../cpu/arithmetics.zig");
+const alu = @import("alu/arithmetics.zig");
 const std = @import("std");
 
 const Cartridge = @import("cartridge.zig");
-const Ppu = @import("../ppu/ppu.zig").Ppu;
-const Timer = @import("../io/timer.zig").Timer;
-const Joypad = @import("../io/joypad.zig").Joypad;
-const Gameboy = @import("../root.zig").Gameboy;
-const GbModel = @import("../hardware.zig").GbModel;
+const Ppu = @import("ppu/ppu.zig").Ppu;
+const Timer = @import("io/timer.zig").Timer;
+const Joypad = @import("io/joypad.zig").Joypad;
+const Emu = @import("root.zig");
 
 pub const Bus = @This();
 
@@ -59,7 +58,7 @@ pub fn write_at(self: *Bus, addr: u16, value: u8) void {
         }
         return;
     }
-    const gb = Gameboy.getGB("bus", self);
+    const gb = Emu.getGB("bus", self);
     switch (addr) {
         // -- ROM --
         0x0000...0x1FFF => return,
@@ -182,7 +181,7 @@ pub fn read_at(self: *Bus, address: u16) u8 {
             std.debug.panic("Attempted to read to flat mem without allocating it first", .{});
         }
     }
-    const gb = Gameboy.getGB("bus", self);
+    const gb = Emu.getGB("bus", self);
     return switch (address) {
         0x0000...0x00FF => {
             if (self.is_bios_loaded) {
@@ -266,7 +265,7 @@ pub fn read_at(self: *Bus, address: u16) u8 {
 }
 
 pub fn read_u8(self: *Bus) u8 {
-    const gb = Gameboy.getGB("bus", self);
+    const gb = Emu.getGB("bus", self);
     gb.cpu.reg.pc +%= 1;
     return self.read_at(gb.cpu.reg.pc -% 1);
 }
@@ -283,7 +282,7 @@ pub fn read_u16(self: *Bus) u16 {
 }
 
 pub fn pop(self: *Bus) u16 {
-    const gb = Gameboy.getGB("bus", self);
+    const gb = Emu.getGB("bus", self);
     const sp = &gb.cpu.reg.sp;
     const l = @as(u16, self.read_at(sp.*));
     sp.* +%= 1;
@@ -293,7 +292,7 @@ pub fn pop(self: *Bus) u16 {
 }
 
 pub fn push(self: *Bus, value: u16) void {
-    const gb = Gameboy.getGB("bus", self);
+    const gb = Emu.getGB("bus", self);
     const sp = &gb.cpu.reg.sp;
     sp.* -%= 1;
     self.write_at(sp.*, @truncate(value >> 8));
@@ -302,9 +301,10 @@ pub fn push(self: *Bus, value: u16) void {
     self.invalidate_cache = false;
 }
 
-pub fn loadBios(self: *Bus, io: std.Io, model: GbModel) !void {
-    const path = switch (model) {
-        .dmg_0 => "./bios/dmg0.rom",
-    };
-    self.bios = try std.Io.Dir.cwd().readFileAlloc(io, path, self.allocator, .limited(model.biosSize() + 1));
+pub fn loadBios(self: *Bus, io: std.Io) !void {
+    // const path = switch (model) {
+    //     .dmg_0 => "./bios/dmg0.rom",
+    // };
+    const path = "./bios/dmg0.rom";
+    self.bios = try std.Io.Dir.cwd().readFileAlloc(io, path, self.allocator, .unlimited);
 }

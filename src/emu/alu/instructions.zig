@@ -1,5 +1,5 @@
 const std = @import("std");
-const Bus = @import("../memory/bus.zig").Bus;
+const Bus = @import("../bus.zig");
 
 pub const Instruction = union(enum) {
     /// Add the value n8 plus the carry flag to A
