@@ -3,7 +3,7 @@ pub const Ppu = @This();
 
 const std = @import("std");
 const GbModel = @import("../hardware.zig").GbModel;
-const Cpu = @import("../alu/cpu.zig").Cpu;
+const CPU = @import("../alu/cpu.zig");
 const Bus = @import("../bus.zig").Bus;
 const Sprite = @import("sprite.zig").Sprite;
 const Gameboy = @import("../root.zig").Emulator;
@@ -15,6 +15,14 @@ const alu = @import("../alu/arithmetics.zig");
 
 const SCREEN_HEIGHT = 144;
 const SCREEN_WIDTH = 160;
+const Color = struct {
+    r: u8 = 0xff,
+    g: u8 = 0xff,
+    b: u8 = 0xff,
+    a: u8 = 0xff,
+};
+
+all: Allocator,
 
 /// Vram `0x8000` to `0x9FFF`
 ///
@@ -71,18 +79,19 @@ window: Window = .{},
 
 debug_was_bg_and_window_display_set: bool = false,
 
-frame_buffer: [SCREEN_HEIGHT * SCREEN_WIDTH]u32 = .{0} ** (SCREEN_HEIGHT * SCREEN_WIDTH),
+frame_buffer: [SCREEN_HEIGHT * SCREEN_WIDTH]Color = [1]Color{.{ .r = 0x00, .g = 0x00, .b = 0x00 }} ** (SCREEN_HEIGHT * SCREEN_WIDTH),
 dots: u16 = 0,
 raised_int_last_mode_switch: bool = false,
 
-pub fn init(model: GbModel, allocator: Allocator) !Ppu {
-    const vram = try allocator.alloc(u8, model.vramSize());
+pub fn init(allocator: Allocator) !Ppu {
+    const vram = try allocator.alloc(u8, 0x2000);
     @memset(vram, 0);
     const oam = try allocator.alloc(u8, 0xA0);
     @memset(oam, 0);
     return .{
         .vram = vram,
         .oam = oam,
+        .all = allocator,
     };
 }
 
@@ -118,9 +127,9 @@ pub fn getMode(self: *Ppu) Mode {
     return @enumFromInt(self.stat & 0b11);
 }
 
-pub fn deinit(self: *Ppu, all: Allocator) void {
-    all.free(self.vram);
-    all.free(self.oam);
+pub fn deinit(self: *Ppu) void {
+    self.all.free(self.vram);
+    self.all.free(self.oam);
 }
 
 pub fn tick(self: *Ppu, cycles: u16) void {
@@ -248,14 +257,14 @@ fn putPixel(self: *Ppu, x: usize, y: usize, color_id: u2) void {
 
     const index = (y * SCREEN_WIDTH) + x;
 
-    const color_argb: u32 = switch (color_id) {
-        0 => argb_color_palette.white,
-        1 => argb_color_palette.light_gray,
-        2 => argb_color_palette.dark_gray,
-        3 => argb_color_palette.black,
+    const color_rgba: Color = switch (color_id) {
+        0 => .{ .r = 0x9C, .g = 0xBC, .b = 0x0F },
+        1 => .{},
+        2 => .{},
+        3 => .{},
     };
 
-    self.frame_buffer[index] = color_argb;
+    self.frame_buffer[index] = color_rgba;
 }
 
 inline fn getColorByBgPalette(self: *Ppu, color_id: u2) u2 {

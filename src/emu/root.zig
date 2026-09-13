@@ -7,7 +7,6 @@
 // pub const Cartridge = @import("memory/cartridge.zig").Cartridge;
 // pub const Timer = @import("io/timer.zig").Timer;
 // pub const Joypad = @import("io/joypad.zig").Joypad;
-// const PPU = @import("ppu/ppu.zig").Ppu;
 // pub const Instruction = instr_mod.Instruction;
 // pub const InstructionEntry = instr_mod.InstructionEntry;
 // pub const R8 = instr_mod.R8;
@@ -22,6 +21,7 @@ pub const Emulator = @This();
 const std = @import("std");
 const Bus = @import("bus.zig");
 const CPU = @import("alu/cpu.zig");
+const PPU = @import("ppu/ppu.zig");
 
 const Io = std.Io;
 const log = std.log.scoped(.zgb);
@@ -31,20 +31,23 @@ allocator: Allocator,
 io: Io,
 cpu: CPU,
 bus: Bus,
+ppu: PPU,
 
-pub fn init(all: Allocator, io: Io) Emulator {
+pub fn init(all: Allocator, io: Io) !Emulator {
     log.info("ZGB init", .{});
     return .{
         .allocator = all,
         .io = io,
         .cpu = CPU.init(),
         .bus = Bus.init(all),
+        .ppu = try PPU.init(all),
     };
 }
 
 pub fn deinit(self: *Emulator) void {
     log.info("ZGB deinit", .{});
     self.bus.deinit();
+    self.ppu.deinit();
 }
 
 pub inline fn getGB(comptime field_name: []const u8, child_ptr: anytype) *Emulator {
