@@ -1,13 +1,7 @@
 // Exports
 // pub const arithmetics = @import("cpu/arithmetics.zig");
-// const instr_mod = @import("cpu/instructions.zig");
-// pub const Apu = @import("apu/apu.zig").Apu;
 // pub const Registers = @import("cpu/registers.zig").Registers;
 // pub const Constants = @import("const.zig");
-// pub const Cartridge = @import("memory/cartridge.zig").Cartridge;
-// pub const Timer = @import("io/timer.zig").Timer;
-// pub const Joypad = @import("io/joypad.zig").Joypad;
-// pub const Instruction = instr_mod.Instruction;
 // pub const InstructionEntry = instr_mod.InstructionEntry;
 // pub const R8 = instr_mod.R8;
 // pub const R16 = instr_mod.R16;
@@ -17,11 +11,17 @@
 // const GbModel = @import("./hardware.zig").GbModel;
 
 pub const Emulator = @This();
+pub const Cartridge = @import("cartridge.zig");
+pub const Instruction = instr_mod.Instruction;
 
-const std = @import("std");
+const Apu = @import("apu/apu.zig");
 const Bus = @import("bus.zig");
 const CPU = @import("alu/cpu.zig");
+const instr_mod = @import("alu/instructions.zig");
+const Joypad = @import("io/joypad.zig");
 const PPU = @import("ppu/ppu.zig");
+const std = @import("std");
+const Timer = @import("io/timer.zig");
 
 const Io = std.Io;
 const log = std.log.scoped(.zgb);
@@ -30,8 +30,11 @@ const Allocator = std.mem.Allocator;
 allocator: Allocator,
 io: Io,
 cpu: CPU,
+apu: Apu,
 bus: Bus,
 ppu: PPU,
+timer: Timer,
+joypad: Joypad,
 
 pub fn init(all: Allocator, io: Io) !Emulator {
     log.info("ZGB init", .{});
@@ -41,6 +44,9 @@ pub fn init(all: Allocator, io: Io) !Emulator {
         .cpu = CPU.init(),
         .bus = Bus.init(all),
         .ppu = try PPU.init(all),
+        .timer = Timer{},
+        .apu = Apu.init(all),
+        .joypad = Joypad{},
     };
 }
 
@@ -48,6 +54,7 @@ pub fn deinit(self: *Emulator) void {
     log.info("ZGB deinit", .{});
     self.bus.deinit();
     self.ppu.deinit();
+    self.apu.deinit();
 }
 
 pub inline fn getGB(comptime field_name: []const u8, child_ptr: anytype) *Emulator {

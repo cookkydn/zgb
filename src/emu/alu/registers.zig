@@ -1,5 +1,5 @@
-const Gameboy = @import("../root.zig").Gameboy;
-const Cpu = @import("./cpu.zig").Cpu;
+const Cpu = @import("./cpu.zig");
+const Gameboy = @import("../root.zig");
 const instr = @import("instructions.zig");
 
 pub const Registers = struct {

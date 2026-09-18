@@ -3,7 +3,6 @@ pub const Ppu = @This();
 
 const std = @import("std");
 const GbModel = @import("../hardware.zig").GbModel;
-const CPU = @import("../alu/cpu.zig");
 const Bus = @import("../bus.zig").Bus;
 const Sprite = @import("sprite.zig").Sprite;
 const Gameboy = @import("../root.zig").Emulator;
@@ -259,9 +258,9 @@ fn putPixel(self: *Ppu, x: usize, y: usize, color_id: u2) void {
 
     const color_rgba: Color = switch (color_id) {
         0 => .{ .r = 0x9C, .g = 0xBC, .b = 0x0F },
-        1 => .{},
-        2 => .{},
-        3 => .{},
+        1 => .{ .r = 0x8B, .g = 0xAC, .b = 0x0F },
+        2 => .{ .r = 0x30, .g = 0x62, .b = 0x30 },
+        3 => .{ .r = 0x10, .g = 0x38, .b = 0x0F },
     };
 
     self.frame_buffer[index] = color_rgba;
@@ -294,12 +293,12 @@ inline fn getColorByObjPalette(self: *Ppu, color_id: u2, obp: u1) u2 {
 }
 
 pub fn turn_off(self: *Ppu) void {
-    if (self.frame_buffer[0] == argb_color_palette.white_off) return;
+    if (std.meta.eql(self.frame_buffer[0], Color{})) return;
     self.setMode(Mode.h_blank);
     self.ly = 0;
 
     for (0..SCREEN_HEIGHT * SCREEN_WIDTH) |i| {
-        self.frame_buffer[i] = argb_color_palette.white_off;
+        self.frame_buffer[i] = Color{};
     }
 }
 
@@ -323,13 +322,6 @@ pub const AddressingMode = enum {
     }
 };
 
-const argb_color_palette = struct {
-    pub const white_off = 0xFF9CBC0F;
-    pub const white = 0xFF9CBC0F;
-    pub const light_gray = 0xFF8BAC0F;
-    pub const dark_gray = 0xFF306230;
-    pub const black = 0xFF10380F;
-};
 
 // -- Memory --
 pub fn write_vram(self: *Ppu, addr: u16, value: u8) void {

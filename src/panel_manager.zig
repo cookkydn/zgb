@@ -1,5 +1,5 @@
-const std = @import("std");
 const dvui = @import("dvui");
+const std = @import("std");
 const log = @import("logger.zig").log;
 const App = @import("app.zig");
 
@@ -7,10 +7,11 @@ const DockingWidget = dvui.DockingWidget;
 const Layout = DockingWidget.Layout;
 
 const render_viewport = @import("panels/viewport.zig").render_viewport;
+const render_cpu_debug = @import("panels/cpu_debug.zig").render;
 
 pub const PanelId = enum {
-    viewport,
     debugger,
+    viewport,
 
     pub fn toDvuiId(id: PanelId) Layout.PanelId {
         return @tagName(id);
@@ -27,8 +28,8 @@ pub const PanelState = struct {
 };
 
 pub const LayoutPreset = enum {
-    play,
     full,
+    play,
 };
 
 pub const PanelDesc = struct {
@@ -48,14 +49,11 @@ fn panelInfo(id: Layout.PanelId) DockingWidget.PanelInfo {
 }
 
 /// Keeps each leaf's otherwise-identical menu widgets distinct.
-fn panelIdExtra(id: Layout.PanelId) usize {
-    return @truncate(std.hash.Wyhash.hash(0, id));
-}
 fn drawHeaderExtra(_: Layout.PanelId) void {}
 
 const registry = std.EnumArray(PanelId, PanelDesc).init(.{
     .viewport = .{ .title = "Gameboy screen", .render_fn = render_viewport },
-    .debugger = .{ .title = "CPU debugger", .render_fn = test_render },
+    .debugger = .{ .title = "CPU debugger", .render_fn = render_cpu_debug },
 });
 
 pub fn applyPreset(preset: LayoutPreset, allocator: std.mem.Allocator) !void {
@@ -116,8 +114,4 @@ pub fn deinit() void {
         lay.deinit();
         docking_layout = null;
     }
-}
-
-fn test_render(_: App, rect: dvui.Rect) !void {
-    dvui.label(@src(), "Test-render {d}", .{rect.w}, .{});
 }

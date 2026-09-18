@@ -1,6 +1,6 @@
+const dvui = @import("dvui");
 const Emulator = @import("emu");
 const std = @import("std");
-const dvui = @import("dvui");
 pub const App = @This();
 
 emu: Emulator,
@@ -9,6 +9,7 @@ pixel_perfect_scaling: bool = false,
 
 pub fn init(allocator: std.mem.Allocator, io: std.Io) !App {
     var emu = try Emulator.init(allocator, io);
+    try emu.bus.loadBios(io);
     const screen_tex = try dvui.textureCreate(
         @ptrCast(&emu.ppu.frame_buffer),
         .{

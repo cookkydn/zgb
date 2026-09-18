@@ -59,7 +59,7 @@ pub fn build(b: *std.Build) void {
     const dvui_dep = b.dependency("dvui", .{ .target = target, .optimize = optimize, .backend = .sdl3 });
 
     const mod_main = b.createModule(.{
-        .root_source_file = b.path("src/dvui-main.zig"),
+        .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
     });

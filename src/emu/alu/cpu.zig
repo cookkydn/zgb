@@ -1,7 +1,6 @@
 pub const CPU = @This();
 
 const alu = @import("./arithmetics.zig");
-const hardware = @import("../hardware.zig");
 
 const Bus = @import("../bus.zig");
 const Registers = @import("registers.zig").Registers;

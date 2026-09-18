@@ -17,10 +17,10 @@ pub const GbModel = enum {
 };
 
 pub const MBCType = enum {
-    no_mbc,
     mbc_1,
     mbc_1_with_ram,
     mbc_1_with_ram_and_battery,
+    no_mbc,
     other,
 
     pub fn fromByte(byte: u8) MBCType {

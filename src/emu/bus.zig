@@ -43,6 +43,7 @@ pub fn init_flat_mem(self: *Bus, all: std.mem.Allocator) !void {
 pub fn deinit(self: *Bus) void {
     if (self.cartridge) |cartridge| {
         cartridge.deinit();
+        self.cartridge = null;
     }
     if (self.bios) |bios| {
         self.allocator.free(bios);

@@ -1,6 +1,6 @@
 const Ppu = @import("./ppu.zig").Ppu;
-const tile = @import("./tile.zig");
 const std = @import("std");
+const tile = @import("./tile.zig");
 
 pub const Window = @This();
 
