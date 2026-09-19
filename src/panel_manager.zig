@@ -8,10 +8,12 @@ const Layout = DockingWidget.Layout;
 
 const render_viewport = @import("panels/viewport.zig").render_viewport;
 const render_cpu_debug = @import("panels/cpu_debug.zig").render;
+const render_joypad = @import("panels/joypad.zig").render_joypad;
 
 pub const PanelId = enum {
     debugger,
     viewport,
+    joypad,
 
     pub fn toDvuiId(id: PanelId) Layout.PanelId {
         return @tagName(id);
@@ -34,7 +36,7 @@ pub const LayoutPreset = enum {
 
 pub const PanelDesc = struct {
     title: [:0]const u8,
-    render_fn: *const fn (app: App, bounds: dvui.Rect) anyerror!void,
+    render_fn: *const fn (app: *App, bounds: dvui.Rect) anyerror!void,
 };
 
 var docking_layout: ?Layout.DockLayout = null;
@@ -54,6 +56,7 @@ fn drawHeaderExtra(_: Layout.PanelId) void {}
 const registry = std.EnumArray(PanelId, PanelDesc).init(.{
     .viewport = .{ .title = "Gameboy screen", .render_fn = render_viewport },
     .debugger = .{ .title = "CPU debugger", .render_fn = render_cpu_debug },
+    .joypad = .{ .title = "Joypad", .render_fn = render_joypad },
 });
 
 pub fn applyPreset(preset: LayoutPreset, allocator: std.mem.Allocator) !void {
@@ -66,15 +69,18 @@ pub fn applyPreset(preset: LayoutPreset, allocator: std.mem.Allocator) !void {
         },
         .full => {
             docking_layout = try Layout.DockLayout.initSingleLeaf(allocator, PanelId.toDvuiId(.viewport));
-
             if (docking_layout) |*lay| {
                 try lay.splitLeaf(lay.root, .right, PanelId.toDvuiId(.debugger));
+
+                if (lay.findPanel(PanelId.toDvuiId(.viewport))) |viewport_leaf| {
+                    try lay.splitLeaf(viewport_leaf, .bottom, PanelId.toDvuiId(.joypad));
+                }
             }
         },
     }
 }
 
-pub fn render(allocator: std.mem.Allocator, app: App) !void {
+pub fn render(allocator: std.mem.Allocator, app: *App) !void {
     if (docking_layout == null) {
         try applyPreset(.play, allocator);
     }

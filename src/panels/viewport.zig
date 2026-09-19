@@ -1,6 +1,6 @@
 const App = @import("../app.zig");
 const dvui = @import("dvui");
-pub fn render_viewport(app: App, rect: dvui.Rect) !void {
+pub fn render_viewport(app: *App, rect: dvui.Rect) !void {
     const scale_x = if (app.pixel_perfect_scaling) @floor(rect.w / 160) else rect.w / 160;
     const scale_y = if (app.pixel_perfect_scaling) @floor(rect.h / 144) else rect.h / 144;
 

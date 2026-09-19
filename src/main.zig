@@ -87,7 +87,7 @@ pub fn appFrame() !dvui.App.Result {
         // try dvui.renderTexture(screen_tex, .{ .r = .rect(0, 0, 160, 144) }, .{});
         var scroll = dvui.scrollArea(@src(), .{}, .{ .expand = .both, .style = .window });
         defer scroll.deinit();
-        try panel_manager.render(gpa, app);
+        try panel_manager.render(gpa, &app);
     }
 
     // Emu

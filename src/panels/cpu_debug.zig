@@ -13,7 +13,7 @@
 const App = @import("../app.zig");
 const dvui = @import("dvui");
 
-pub fn render(app: App, _: dvui.Rect) !void {
+pub fn render(app: *App, _: dvui.Rect) !void {
     const fps = dvui.FPS();
     const reg = app.emu.cpu.reg;
     dvui.label(@src(), "FPS: {d:.1}", .{fps}, .{});
