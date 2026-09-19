@@ -11,18 +11,7 @@ const window_icon_png = @embedFile("logo.png");
 
 pub const dvui_app: dvui.App = .{
     .config = .{
-        .options = .{
-            .size = .{ .w = 600.0, .h = 600.0 },
-            .min_size = .{ .w = 160, .h = 206 },
-            .title = "ZGB",
-            .icon = window_icon_png,
-            .org = "zgb",
-
-            .window_init_options = .{
-                .keybinds_zoom = true,
-                .theme = dvui.Theme.builtin.dracula,
-            },
-        },
+        .startFn = getConfig,
     },
     .frameFn = appFrame,
     .initFn = appInit,
@@ -40,6 +29,22 @@ var app: App = undefined;
 var cycle_acc: i128 = 0;
 var last_frame_time: i128 = 0;
 
+pub fn getConfig() dvui.App.StartOptions {
+    _ = dvui.backend.c.SDL_SetAppMetadata("ZGB", "0.1.0", "dev.cookky.zgb");
+    return .{
+        .size = .{ .w = 600.0, .h = 600.0 },
+        .min_size = .{ .w = 160, .h = 206 },
+        .title = "ZGB",
+        .icon = window_icon_png,
+        .org = "zgb",
+
+        .window_init_options = .{
+            .keybinds_zoom = true,
+            .theme = dvui.Theme.builtin.dracula,
+        },
+    };
+}
+
 // Runs before the first frame, after backend and dvui.Window.init()
 // - runs between win.begin()/win.end()
 pub fn appInit(win: *dvui.Window) !void {
@@ -50,19 +55,19 @@ pub fn appInit(win: *dvui.Window) !void {
     app = try App.init(gpa, dvui.io);
 
     // Add your own bundled font files...:
-    // try dvui.addFont("NOTO", @embedFile("../src/fonts/NotoSansKR-Regular.ttf"), null);
+    try dvui.addFont("RobotoMono", @embedFile("fonts/RobotoMono-Regular.ttf"), null);
 
-    // If you want a custom theme use something like this:
-    // const theme = switch (win.backend.preferredColorScheme() orelse .light) {
-    //     .light => dvui.Theme.builtin.adwaita_light,
-    //     .dark => dvui.Theme.builtin.adwaita_dark,
-    // };
-    // win.themeSet(theme);
+    var theme = dvui.Theme.builtin.dracula;
+    theme.font_body = .find(.{ .family = "RobotoMono" });
+    theme.font_mono = .find(.{ .family = "RobotoMono" });
+
+    win.themeSet(theme);
 }
 
 // Run as app is shutting down before dvui.Window.deinit()
 pub fn appDeinit(win: *dvui.Window) void {
     _ = win;
+
     app.deinit();
     panel_manager.deinit();
 }
@@ -143,10 +148,9 @@ pub fn menu() !?dvui.App.Result {
             if (file_path) |path| {
                 log.debug("File opened: {s}", .{path});
                 const cart = try Emulator.Cartridge.fromFile(path, gpa, dvui.io);
-                if (app.emu.bus.cartridge) |cartridge| {
-                    cartridge.deinit();
-                    app.emu.bus.cartridge = null;
-                }
+                app.emu.deinit();
+                app.emu = try Emulator.init(gpa, dvui.io);
+                try app.emu.bus.loadBios(dvui.io);
                 app.emu.bus.cartridge = cart;
                 gpa.free(path);
             } else {

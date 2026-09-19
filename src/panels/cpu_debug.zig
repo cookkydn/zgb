@@ -15,13 +15,18 @@ const dvui = @import("dvui");
 
 pub fn render(app: App, _: dvui.Rect) !void {
     const fps = dvui.FPS();
-    dvui.label(@src(), "FPS: {d}", .{fps}, .{});
-    dvui.label(@src(), "Halted: {s}", .{if (app.emu.cpu.state.halted) "true" else "false"}, .{});
-    render_registers(app);
-}
-
-pub fn render_registers(app: App) void {
     const reg = app.emu.cpu.reg;
+    dvui.label(@src(), "FPS: {d:.1}", .{fps}, .{});
+    {
+        var row = dvui.box(@src(), .{ .dir = .horizontal }, .{});
+        defer row.deinit();
+
+        dvui.label(@src(), "State: ", .{}, .{});
+
+        renderStatusFlag(1, "IME", app.emu.cpu.state.ime == .ENABLED);
+        renderStatusFlag(2, "HALT", app.emu.cpu.state.halted);
+    }
+    _ = dvui.spacer(@src(), .{ .min_size_content = .height(10) });
 
     // PC & SP
     {
@@ -31,13 +36,24 @@ pub fn render_registers(app: App) void {
         dvui.label(@src(), "PC: 0x{X:0>4}", .{reg.pc}, .{});
         dvui.label(@src(), "SP: 0x{X:0>4}", .{reg.sp}, .{});
     }
-    _ = dvui.spacer(@src(), .{});
 
+    // AF, BC, DE, HL
     {
         renderRegPair(1, "AF", reg.getAF(), "A", reg.a, "F", @truncate(reg.f.getF()));
         renderRegPair(2, "BC", reg.getBC(), "B", reg.b, "C", reg.c);
         renderRegPair(3, "DE", reg.getDE(), "D", reg.d, "E", reg.e);
         renderRegPair(4, "HL", reg.getHL(), "H", reg.h, "L", reg.l);
+    }
+
+    // Flags
+    {
+        var row = dvui.box(@src(), .{ .dir = .horizontal }, .{});
+        defer row.deinit();
+        dvui.label(@src(), "Flags:", .{}, .{});
+        renderFlag(1, "Z", reg.f.z);
+        renderFlag(2, "N", reg.f.n);
+        renderFlag(3, "H", reg.f.h);
+        renderFlag(4, "C", reg.f.c);
     }
 }
 
@@ -47,6 +63,31 @@ fn renderRegPair(id: usize, name16: []const u8, val16: u16, nameHigh: []const u8
 
     dvui.label(@src(), "{s}: 0x{X:0>4}", .{ name16, val16 }, .{});
     dvui.label(@src(), "({s}: {X:0>2}  {s}: {X:0>2})", .{ nameHigh, valHigh, nameLow, valLow }, .{ .color_text = .{ .color = .gray } });
+}
+
+fn renderStatusFlag(id: usize, name: []const u8, active: bool) void {
+    var color: dvui.ColorOrGradient = .{ .color = .gray };
+    if (active) {
+        color = dvui.ColorOrGradient.green;
+    }
+
+    const options = dvui.Options{
+        .id_extra = id,
+        .color_text = color,
+    };
+    dvui.label(@src(), "[{s}]", .{name}, options);
+}
+
+fn renderFlag(id: usize, name: []const u8, active: bool) void {
+    var color = dvui.ColorOrGradient.white;
+    if (active) {
+        color = dvui.ColorOrGradient.green;
+    }
+    const options = dvui.Options{
+        .id_extra = id,
+        .color_text = color,
+    };
+    dvui.label(@src(), "[{s}]", .{if (active) name else "-"}, options);
 }
 
 // pub const DebugPanel = struct {

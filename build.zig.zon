@@ -9,8 +9,8 @@
             .hash = "zlinter-0.0.1-OjQ08c7oCwDIwhlde7eDKMACNTsqAhGXy5vB7GdfGobG",
         },
         .dvui = .{
-            .url = "git+https://github.com/david-vanderson/dvui?ref=main#fd6f1697c65b8f146de7c811e15c9d56b6eb990e",
-            .hash = "dvui-0.5.0-dev-AQFJmZZyAwEkR_gCdvQuRximklpTrbREI25evlYk6Pz-",
+            .url = "https://github.com/david-vanderson/dvui/archive/master.tar.gz",
+            .hash = "dvui-0.5.0-dev-AQFJmQaJAwFZThGJKG6RHhJu8lrApxZeEF_cMx3x33ST",
         },
     },
     .paths = .{
