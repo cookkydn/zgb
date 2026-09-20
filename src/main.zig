@@ -3,6 +3,7 @@ const builtin = @import("builtin");
 const dvui = @import("dvui");
 const Emulator = @import("emu");
 const std = @import("std");
+const events = @import("events.zig");
 const log = @import("logger.zig").log;
 
 const panel_manager = @import("panel_manager.zig");
@@ -62,6 +63,30 @@ pub fn appInit(win: *dvui.Window) !void {
     theme.font_mono = .find(.{ .family = "RobotoMono" });
 
     win.themeSet(theme);
+
+    const spec = dvui.backend.c.SDL_AudioSpec{
+        .freq = 48000,
+        .channels = 2,
+        .format = dvui.backend.c.SDL_AUDIO_F32,
+    };
+
+    if (!dvui.backend.c.SDL_InitSubSystem(dvui.backend.c.SDL_INIT_AUDIO)) {
+        std.log.err("Failed to init audio subsystem: {s}", .{dvui.backend.c.SDL_GetError()});
+        return;
+    }
+
+    app.audio_stream = dvui.backend.c.SDL_OpenAudioDeviceStream(
+        dvui.backend.c.SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK,
+        &spec,
+        null,
+        null,
+    );
+
+    if (app.audio_stream) |stream| {
+        _ = dvui.backend.c.SDL_ResumeAudioStreamDevice(stream);
+    } else {
+        log.err("Unable to initialize SDL audio", .{});
+    }
 }
 
 // Run as app is shutting down before dvui.Window.deinit()
@@ -74,9 +99,9 @@ pub fn appDeinit(win: *dvui.Window) void {
 
 // Run each frame to do normal UI
 pub fn appFrame() !dvui.App.Result {
-    // Emu
+    // KEYBOARD
     {
-        try app.screen_tex.update(@ptrCast(&app.emu.ppu.frame_buffer));
+        events.handleEvents(&app);
     }
 
     // UI
@@ -120,9 +145,20 @@ pub fn appFrame() !dvui.App.Result {
                 app.emu.ppu.tick(cycles_taken);
                 app.emu.timer.tick(cycles_taken);
                 app.emu.apu.tick(cycles_taken);
-                app.emu.apu.buffer_index = 0;
                 cycle_acc -= cycles_taken;
+                if (app.emu.apu.buffer_index >= app.emu.apu.buffer.len) {
+                    if (app.audio_stream) |stream| {
+                        const byte_size = app.emu.apu.buffer_index * @sizeOf(f32);
+                        _ = dvui.backend.c.SDL_PutAudioStreamData(
+                            stream,
+                            &app.emu.apu.buffer,
+                            @intCast(byte_size),
+                        );
+                    }
+                    app.emu.apu.buffer_index = 0;
+                }
             }
+            try app.screen_tex.update(@ptrCast(&app.emu.ppu.frame_buffer));
         }
     }
 

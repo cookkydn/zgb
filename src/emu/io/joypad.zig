@@ -88,7 +88,7 @@ pub fn updateReg(self: *Joypad) void {
     self.p1_joyp = 0xC0 | (self.p1_joyp & 0x30) | lower_nibble;
 }
 
-pub const JoypadBtn = union(enum) {
+pub const JoypadBtn = enum {
     a,
     b,
     down,

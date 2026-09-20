@@ -9,11 +9,13 @@ const Layout = DockingWidget.Layout;
 const render_viewport = @import("panels/viewport.zig").render_viewport;
 const render_cpu_debug = @import("panels/cpu_debug.zig").render;
 const render_joypad = @import("panels/joypad.zig").render_joypad;
+const render_bg = @import("panels/background-viewer.zig").render_bg_viewer;
 
 pub const PanelId = enum {
     debugger,
     viewport,
     joypad,
+    bgView,
 
     pub fn toDvuiId(id: PanelId) Layout.PanelId {
         return @tagName(id);
@@ -57,6 +59,7 @@ const registry = std.EnumArray(PanelId, PanelDesc).init(.{
     .viewport = .{ .title = "Gameboy screen", .render_fn = render_viewport },
     .debugger = .{ .title = "CPU debugger", .render_fn = render_cpu_debug },
     .joypad = .{ .title = "Joypad", .render_fn = render_joypad },
+    .bgView = .{ .title = "Background", .render_fn = render_bg },
 });
 
 pub fn applyPreset(preset: LayoutPreset, allocator: std.mem.Allocator) !void {
@@ -74,6 +77,9 @@ pub fn applyPreset(preset: LayoutPreset, allocator: std.mem.Allocator) !void {
 
                 if (lay.findPanel(PanelId.toDvuiId(.viewport))) |viewport_leaf| {
                     try lay.splitLeaf(viewport_leaf, .bottom, PanelId.toDvuiId(.joypad));
+                }
+                if (lay.findPanel(PanelId.toDvuiId(.debugger))) |viewport_leaf| {
+                    try lay.splitLeaf(viewport_leaf, .bottom, PanelId.toDvuiId(.bgView));
                 }
             }
         },

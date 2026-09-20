@@ -13,13 +13,14 @@
 pub const Emulator = @This();
 pub const Cartridge = @import("cartridge.zig");
 pub const Instruction = instr_mod.Instruction;
+pub const JoypadBtn = Joypad.JoypadBtn;
+pub const Ppu = @import("ppu/ppu.zig");
 
 const Apu = @import("apu/apu.zig");
 const Bus = @import("bus.zig");
 const CPU = @import("alu/cpu.zig");
 const instr_mod = @import("alu/instructions.zig");
 const Joypad = @import("io/joypad.zig");
-const PPU = @import("ppu/ppu.zig");
 const std = @import("std");
 const Timer = @import("io/timer.zig");
 
@@ -32,7 +33,7 @@ io: Io,
 cpu: CPU,
 apu: Apu,
 bus: Bus,
-ppu: PPU,
+ppu: Ppu,
 timer: Timer,
 joypad: Joypad,
 
@@ -43,7 +44,7 @@ pub fn init(all: Allocator, io: Io) !Emulator {
         .io = io,
         .cpu = CPU.init(),
         .bus = Bus.init(all),
-        .ppu = try PPU.init(all),
+        .ppu = try Ppu.init(all),
         .timer = Timer{},
         .apu = Apu.init(all),
         .joypad = Joypad{},

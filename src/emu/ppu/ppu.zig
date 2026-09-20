@@ -1,13 +1,13 @@
 //! Pixel processing unit
 pub const Ppu = @This();
+pub const background = @import("background.zig");
+pub const tile = @import("tile.zig");
 
 const std = @import("std");
 const GbModel = @import("../hardware.zig").GbModel;
 const Bus = @import("../bus.zig").Bus;
 const Sprite = @import("sprite.zig").Sprite;
 const Gameboy = @import("../root.zig").Emulator;
-const background = @import("background.zig");
-const tile = @import("tile.zig");
 const Window = @import("./window.zig").Window;
 const Allocator = std.mem.Allocator;
 const alu = @import("../alu/arithmetics.zig");
@@ -266,7 +266,7 @@ fn putPixel(self: *Ppu, x: usize, y: usize, color_id: u2) void {
     self.frame_buffer[index] = color_rgba;
 }
 
-inline fn getColorByBgPalette(self: *Ppu, color_id: u2) u2 {
+pub inline fn getColorByBgPalette(self: *Ppu, color_id: u2) u2 {
     return switch (color_id) {
         0 => @truncate((self.bgp & 0x03)),
         1 => @truncate((self.bgp & 0x0C) >> 2),
@@ -321,7 +321,6 @@ pub const AddressingMode = enum {
         return if (lcdc & 0x10 > 0) .UNSIGNED else .SIGNED;
     }
 };
-
 
 // -- Memory --
 pub fn write_vram(self: *Ppu, addr: u16, value: u8) void {

@@ -6,6 +6,7 @@ pub const App = @This();
 emu: Emulator,
 screen_tex: dvui.Texture,
 pixel_perfect_scaling: bool = false,
+audio_stream: ?*dvui.backend.c.SDL_AudioStream = null,
 
 pub fn init(allocator: std.mem.Allocator, io: std.Io) !App {
     var emu = try Emulator.init(allocator, io);
@@ -26,4 +27,7 @@ pub fn init(allocator: std.mem.Allocator, io: std.Io) !App {
 
 pub fn deinit(self: *App) void {
     self.emu.deinit();
+    if (self.audio_stream) |stream| {
+        dvui.backend.c.SDL_DestroyAudioStream(stream);
+    }
 }
