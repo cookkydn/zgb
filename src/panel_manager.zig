@@ -9,13 +9,15 @@ const Layout = DockingWidget.Layout;
 const render_viewport = @import("panels/viewport.zig").render_viewport;
 const render_cpu_debug = @import("panels/cpu_debug.zig").render;
 const render_joypad = @import("panels/joypad.zig").render_joypad;
-const render_bg = @import("panels/background-viewer.zig").render_bg_viewer;
+const render_bg = @import("panels/background_viewer.zig").render_bg_viewer;
+const render_vis = @import("panels/sound_visualizer.zig").render_vis;
 
 pub const PanelId = enum {
     debugger,
     viewport,
     joypad,
-    bgView,
+    bg_view,
+    sound_visualiser,
 
     pub fn toDvuiId(id: PanelId) Layout.PanelId {
         return @tagName(id);
@@ -34,6 +36,7 @@ pub const PanelState = struct {
 pub const LayoutPreset = enum {
     full,
     play,
+    sound,
 };
 
 pub const PanelDesc = struct {
@@ -59,7 +62,8 @@ const registry = std.EnumArray(PanelId, PanelDesc).init(.{
     .viewport = .{ .title = "Gameboy screen", .render_fn = render_viewport },
     .debugger = .{ .title = "CPU debugger", .render_fn = render_cpu_debug },
     .joypad = .{ .title = "Joypad", .render_fn = render_joypad },
-    .bgView = .{ .title = "Background", .render_fn = render_bg },
+    .bg_view = .{ .title = "Background", .render_fn = render_bg },
+    .sound_visualiser = .{ .title = "Sound visualizer", .render_fn = render_vis },
 });
 
 pub fn applyPreset(preset: LayoutPreset, allocator: std.mem.Allocator) !void {
@@ -67,8 +71,12 @@ pub fn applyPreset(preset: LayoutPreset, allocator: std.mem.Allocator) !void {
     is_play_mode = preset == .play;
 
     switch (preset) {
-        .play => {
-            // docking_layout = try Layout.DockLayout.initSingleLeaf(allocator, PanelId.toDvuiId(.viewport));
+        .play => {},
+        .sound => {
+            docking_layout = try Layout.DockLayout.initSingleLeaf(allocator, PanelId.toDvuiId(.viewport));
+            if (docking_layout) |*lay| {
+                try lay.splitLeaf(lay.root, .right, PanelId.toDvuiId(.sound_visualiser));
+            }
         },
         .full => {
             docking_layout = try Layout.DockLayout.initSingleLeaf(allocator, PanelId.toDvuiId(.viewport));
@@ -79,7 +87,7 @@ pub fn applyPreset(preset: LayoutPreset, allocator: std.mem.Allocator) !void {
                     try lay.splitLeaf(viewport_leaf, .bottom, PanelId.toDvuiId(.joypad));
                 }
                 if (lay.findPanel(PanelId.toDvuiId(.debugger))) |viewport_leaf| {
-                    try lay.splitLeaf(viewport_leaf, .bottom, PanelId.toDvuiId(.bgView));
+                    try lay.splitLeaf(viewport_leaf, .bottom, PanelId.toDvuiId(.bg_view));
                 }
             }
         },

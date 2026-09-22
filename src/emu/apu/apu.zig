@@ -52,6 +52,10 @@ allocator: std.mem.Allocator,
 sample_counter: u32 = 0,
 
 buffer: [2048]f32 = undefined,
+ch1_buffer: [2048]f32 = undefined,
+ch2_buffer: [2048]f32 = undefined,
+ch3_buffer: [2048]f32 = undefined,
+ch4_buffer: [2048]f32 = .{0} ** 2048,
 buffer_index: usize = 0,
 frame_seq: i32 = 0,
 frame_step: u8 = 0,
@@ -251,7 +255,12 @@ pub fn tick(self: *Apu, ticks: u16) void {
 
             break :blk @as(f32, @floatFromInt(wave)) / 15;
         };
-
+        self.ch1_buffer[self.buffer_index] = ch1_val;
+        self.ch1_buffer[self.buffer_index + 1] = ch1_val;
+        self.ch2_buffer[self.buffer_index] = ch2_val;
+        self.ch2_buffer[self.buffer_index + 1] = ch2_val;
+        self.ch3_buffer[self.buffer_index] = ch3_val;
+        self.ch3_buffer[self.buffer_index + 1] = ch3_val;
         self.buffer[self.buffer_index] = (ch1_val + ch2_val + ch3_val) / 3;
         self.buffer[self.buffer_index + 1] = (ch1_val + ch2_val + ch3_val) / 3;
         self.buffer_index += 2;
@@ -346,7 +355,6 @@ fn is_ch1_length_enabled(self: *Apu) bool {
     return self.nr14 & 0x40 != 0;
 }
 
-
 fn get_ch1_envelope_pace(self: *Apu) u3 {
     return @truncate(self.nr12 & 0x07);
 }
@@ -374,7 +382,6 @@ fn get_ch2_freq(self: *Apu) u11 {
 fn is_ch2_length_enabled(self: *Apu) bool {
     return self.nr24 & 0x40 != 0;
 }
-
 
 fn get_ch2_envelope_pace(self: *Apu) u3 {
     return @truncate(self.nr22 & 0x07);

@@ -217,14 +217,15 @@ pub fn menu() !?dvui.App.Result {
     if (dvui.menuItemLabel(@src(), "Layout", .{ .submenu = true }, .{})) |r| {
         var fw = dvui.floatingMenu(@src(), .{ .from = r }, .{});
         defer fw.deinit();
-        if (dvui.menuItemLabel(@src(), "Play", .{}, .{ .expand = .horizontal }) != null) {
-            m.close();
-            try panel_manager.applyPreset(.play, gpa);
-        }
+        inline for (std.meta.fields(panel_manager.LayoutPreset)) |preset| {
+            var buf: [preset.name.len:0]u8 = undefined;
+            @memcpy(&buf, preset.name);
+            buf[0] = std.ascii.toUpper(buf[0]);
 
-        if (dvui.menuItemLabel(@src(), "Full", .{}, .{ .expand = .horizontal }) != null) {
-            m.close();
-            try panel_manager.applyPreset(.full, gpa);
+            if (dvui.menuItemLabel(@src(), &buf, .{}, .{ .expand = .horizontal, .id_extra = preset.value }) != null) {
+                m.close();
+                try panel_manager.applyPreset(@enumFromInt(preset.value), gpa);
+            }
         }
     }
     if (dvui.menuItemLabel(@src(), "Debug", .{ .submenu = true }, .{})) |r| {
