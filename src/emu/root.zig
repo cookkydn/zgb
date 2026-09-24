@@ -2,7 +2,6 @@
 // pub const arithmetics = @import("cpu/arithmetics.zig");
 // pub const Registers = @import("cpu/registers.zig").Registers;
 // pub const Constants = @import("const.zig");
-// pub const InstructionEntry = instr_mod.InstructionEntry;
 // pub const R8 = instr_mod.R8;
 // pub const R16 = instr_mod.R16;
 // pub const R16Mem = instr_mod.R16Mem;
@@ -15,6 +14,7 @@ pub const Cartridge = @import("cartridge.zig");
 pub const Instruction = instr_mod.Instruction;
 pub const JoypadBtn = Joypad.JoypadBtn;
 pub const Ppu = @import("ppu/ppu.zig");
+pub const InstructionWithSize = instr_mod.InstructionWithSize;
 
 const Apu = @import("apu/apu.zig");
 const Bus = @import("bus.zig");

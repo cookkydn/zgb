@@ -773,7 +773,7 @@ pub const Instruction = union(enum) {
         }
     }
 
-    pub fn takeAt(bus: *Bus, addr: u16) InstructionEntry {
+    pub fn takeAt(bus: *Bus, addr: u16) InstructionWithSize {
         const pc = bus.getCpu().reg.pc;
         bus.getCpu().reg.pc = addr;
         const instr = Instruction.fromBus(bus);
@@ -783,7 +783,7 @@ pub const Instruction = union(enum) {
     }
 };
 
-pub const InstructionEntry = struct { instruction: Instruction, size: u16 };
+pub const InstructionWithSize = struct { instruction: Instruction, size: u16 };
 
 pub const R8 = enum {
     a,

@@ -11,6 +11,7 @@ const render_cpu_debug = @import("panels/cpu_debug.zig").render;
 const render_joypad = @import("panels/joypad.zig").render_joypad;
 const render_bg = @import("panels/background_viewer.zig").render_bg_viewer;
 const render_vis = @import("panels/sound_visualizer.zig").render_vis;
+const render_decompiler = @import("panels/decompiler.zig").render_decompiler;
 
 pub const PanelId = enum {
     debugger,
@@ -18,6 +19,7 @@ pub const PanelId = enum {
     joypad,
     bg_view,
     sound_visualiser,
+    decompiler,
 
     pub fn toDvuiId(id: PanelId) Layout.PanelId {
         return @tagName(id);
@@ -33,11 +35,7 @@ pub const PanelState = struct {
     rect: dvui.Rect,
 };
 
-pub const LayoutPreset = enum {
-    full,
-    play,
-    sound,
-};
+pub const LayoutPreset = enum { full, play, sound, decompiler };
 
 pub const PanelDesc = struct {
     title: [:0]const u8,
@@ -64,6 +62,7 @@ const registry = std.EnumArray(PanelId, PanelDesc).init(.{
     .joypad = .{ .title = "Joypad", .render_fn = render_joypad },
     .bg_view = .{ .title = "Background", .render_fn = render_bg },
     .sound_visualiser = .{ .title = "Sound visualizer", .render_fn = render_vis },
+    .decompiler = .{ .title = "Decompiler", .render_fn = render_decompiler },
 });
 
 pub fn applyPreset(preset: LayoutPreset, allocator: std.mem.Allocator) !void {
@@ -76,6 +75,12 @@ pub fn applyPreset(preset: LayoutPreset, allocator: std.mem.Allocator) !void {
             docking_layout = try Layout.DockLayout.initSingleLeaf(allocator, PanelId.toDvuiId(.viewport));
             if (docking_layout) |*lay| {
                 try lay.splitLeaf(lay.root, .right, PanelId.toDvuiId(.sound_visualiser));
+            }
+        },
+        .decompiler => {
+            docking_layout = try Layout.DockLayout.initSingleLeaf(allocator, PanelId.toDvuiId(.viewport));
+            if (docking_layout) |*lay| {
+                try lay.splitLeaf(lay.root, .right, PanelId.toDvuiId(.decompiler));
             }
         },
         .full => {
